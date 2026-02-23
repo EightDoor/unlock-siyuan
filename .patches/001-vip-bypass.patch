@@ -1,0 +1,33 @@
+diff --git a/kernel/model/conf.go b/kernel/model/conf.go
+index 8eb1a9b..f199ec8 100644
+--- a/kernel/model/conf.go
++++ b/kernel/model/conf.go
+@@ -1002,23 +1002,15 @@ func InitBoxes() {
+ 	logging.LogInfof("tree/block count [%d/%d]", treenode.CountTrees(), blockCount)
+ }
+ 
++
+ func IsSubscriber() bool {
+-	u := Conf.GetUser()
+-	return nil != u && (-1 == u.UserSiYuanProExpireTime || 0 < u.UserSiYuanProExpireTime) && 0 == u.UserSiYuanSubscriptionStatus
++	// [FORK-MOD] Always return true to bypass subscription check
++	return true
+ }
+ 
+ func IsPaidUser() bool {
+-	// S3/WebDAV data sync and backup are available for a fee https://github.com/siyuan-note/siyuan/issues/8780
+-
+-	if IsSubscriber() {
+-		return true
+-	}
+-
+-	u := Conf.GetUser()
+-	if nil == u {
+-		return false
+-	}
+-	return 1 == u.UserSiYuanOneTimePayStatus
++	// [FORK-MOD] Always return true to bypass paid check for S3/WebDAV
++	return true
+ }
+ 
+ const (

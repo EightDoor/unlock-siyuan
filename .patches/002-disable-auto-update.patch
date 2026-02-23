@@ -1,0 +1,13 @@
+diff --git a/kernel/conf/system.go b/kernel/conf/system.go
+index d4a7d04..d2e9bdb 100644
+--- a/kernel/conf/system.go
++++ b/kernel/conf/system.go
+@@ -55,7 +55,7 @@ func NewSystem() *System {
+ 		Name:               util.GetDeviceName(),
+ 		KernelVersion:      util.Ver,
+ 		NetworkProxy:       &NetworkProxy{},
+-		DownloadInstallPkg: true,
++		DownloadInstallPkg: false // [FORK-MOD] Disabled auto download update package,
+ 	}
+ }
+ 
