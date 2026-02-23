@@ -9,11 +9,30 @@ on:
       push_docker:
         description: 'Push to Docker Hub'
         required: false
-        default: 'true'
+        default: true
+        type: boolean
+      push_ghcr:
+        description: 'Push to GitHub Container Registry'
+        required: false
+        default: true
+        type: boolean
+      build_platforms:
+        description: 'Build platforms'
+        required: false
+        default: 'linux/amd64,linux/arm64'
+        type: choice
+        options:
+          - 'linux/amd64,linux/arm64'
+          - 'linux/amd64'
+          - 'linux/arm64'
+      create_release:
+        description: 'Create GitHub Release'
+        required: false
+        default: true
         type: boolean
 
 env:
-  DOCKER_USERNAME: EightDoor
+  DOCKER_USERNAME: eightdoor
   IMAGE_NAME: siyuan
 
 jobs:
@@ -22,6 +41,9 @@ jobs:
     permissions:
       contents: read
       packages: write
+    
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
     
     steps:
       - name: Checkout repository
@@ -34,13 +56,14 @@ jobs:
         uses: docker/setup-buildx-action@v3
       
       - name: Login to Docker Hub
-        if: github.event_name != 'pull_request'
+        if: inputs.push_docker == true || startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       
       - name: Login to GitHub Container Registry
+        if: inputs.push_ghcr == true || startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -52,8 +75,8 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}
-            ghcr.io/${{ github.repository }}
+            name=${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }},enable=${{ inputs.push_docker == true || startsWith(github.ref, 'refs/tags/') }}
+            name=ghcr.io/${{ github.repository }},enable=${{ inputs.push_ghcr == true || startsWith(github.ref, 'refs/tags/') }}
           tags: |
             type=ref,event=branch
             type=ref,event=pr
@@ -61,28 +84,53 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
             type=sha
+            type=raw,value=latest,enable={{is_default_branch}}
       
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ inputs.build_platforms || 'linux/amd64,linux/arm64' }}
           push: ${{ github.event_name != 'pull_request' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+      
+      - name: Build summary
+        run: |
+          echo "## 🐳 Docker Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Tags" >> $GITHUB_STEP_SUMMARY
+          echo "\`${{ steps.meta.outputs.tags }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Platforms" >> $GITHUB_STEP_SUMMARY
+          echo "\`${{ inputs.build_platforms || 'linux/amd64,linux/arm64' }}\`" >> $GITHUB_STEP_SUMMARY
 
   create-release:
     needs: build-docker
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/')
+    if: (inputs.create_release == true && github.event_name == 'workflow_dispatch') || startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Get version info
+        id: version
+        run: |
+          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            # 手动触发时从上游获取最新版本或使用当前 commit
+            VERSION="v$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
+          fi
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "Version: ${VERSION}"
       
       - name: Generate changelog
         id: changelog
@@ -101,20 +149,49 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: "SiYuan Unlock Edition ${{ steps.version.outputs.version }}"
           body: |
-            ## SiYuan Custom Build
-            Based on upstream: siyuan-note/siyuan@${{ github.sha }}
+            ## 🔓 SiYuan Unlock Edition
             
-            ### Modifications
-            - ✅ VIP features unlocked (cloud sync, S3/WebDAV)
-            - ✅ Auto-download update disabled by default
+            Based on upstream: [siyuan-note/siyuan](https://github.com/siyuan-note/siyuan)
             
-            ### Docker Images
-            - `docker pull eightdoor/siyuan:${{ github.ref_name }}`
-            - `docker pull ghcr.io/${{ github.repository }}:${{ github.ref_name }}`
+            ### ✨ Modifications
+            - ✅ **VIP features unlocked** - Cloud sync, S3/WebDAV, and all premium features
+            - ✅ **Auto-download update disabled** - No automatic update downloads
             
-            ### Changelog
+            ### 🐳 Docker Images
+            
+            **Docker Hub:**
+            ```bash
+            docker pull ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+            docker pull ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            ```
+            
+            **GitHub Container Registry:**
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
+            docker pull ghcr.io/${{ github.repository }}:latest
+            ```
+            
+            ### 🚀 Quick Start
+            
+            ```bash
+            docker run -d \
+              -v /path/to/workspace:/siyuan/workspace \
+              -p 6806:6806 \
+              ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
+              --workspace=/siyuan/workspace \
+              --accessAuthCode=your_password
+            ```
+            
+            ### 📝 Changelog
             ${{ steps.changelog.outputs.changelog }}
+            
+            ---
+            
+            > ⚠️ **Disclaimer**: This is an unofficial build for personal use only. 
+            > Please support the official project: https://b3log.org/siyuan/en/pricing.html
           draft: false
           prerelease: false
         env:
