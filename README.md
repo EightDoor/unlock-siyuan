@@ -51,13 +51,13 @@ docker run -d \
 
 | Secret | 说明 | 如何获取 |
 |--------|------|----------|
+| `DOCKER_USERNAME` | Docker Hub 用户名 | 你的 Docker Hub 账号用户名 |
 | `DOCKERHUB_TOKEN` | Docker Hub Access Token | [创建 Token](https://hub.docker.com/settings/security) |
 
 ### 📝 Variables（可选）
 
 | Variable | 说明 | 默认值 |
 |----------|------|--------|
-| `DOCKER_USERNAME` | Docker Hub 用户名 | `eightdoor` |
 | `IMAGE_NAME` | Docker 镜像名称 | `siyuan` |
 
 ---
@@ -75,22 +75,27 @@ docker run -d \
    - Permissions: `Read, Write, Delete`
 6. 点击 **Generate** 并**复制 Token**（只显示一次）
 
-#### 2. 添加 GitHub Secret
+#### 2. 添加 GitHub Secrets
 
 1. 进入仓库 **Settings** → **Secrets and variables** → **Actions**
 2. 点击 **New repository secret**
-3. 填写：
+3. 添加用户名：
+   - Name: `DOCKER_USERNAME`
+   - Secret: 你的 Docker Hub 用户名
+4. 点击 **Add secret**
+5. 再次点击 **New repository secret**
+6. 添加 Token：
    - Name: `DOCKERHUB_TOKEN`
    - Secret: 粘贴刚才复制的 Token
-4. 点击 **Add secret**
+7. 点击 **Add secret**
 
 #### 3. 添加 GitHub Variable（可选）
 
 1. 在同一页面点击 **Variables** 标签
 2. 点击 **New repository variable**
 3. 填写：
-   - Name: `DOCKER_USERNAME`
-   - Value: 你的 Docker Hub 用户名
+   - Name: `IMAGE_NAME`
+   - Value: `siyuan`（或其他镜像名称）
 4. 点击 **Add variable**
 
 ---
@@ -115,7 +120,6 @@ docker run -d \
 | `push_ghcr` | 推送到 GitHub Container Registry | ✅ true |
 | `build_platforms` | 构建平台 | linux/amd64,linux/arm64 |
 | `create_release` | 创建 GitHub Release | ✅ true |
-| `docker_username` | Docker Hub 用户名（覆盖变量） | 空（使用变量） |
 
 ---
 
@@ -154,16 +158,17 @@ docker run -d \
 
 ```yaml
 # GitHub Secrets（必需）
+DOCKER_USERNAME: "your_docker_hub_username"
 DOCKERHUB_TOKEN: "dckr_pat_xxxxxxxxxxxx"
 
 # GitHub Variables（可选，有默认值）
-DOCKER_USERNAME: "851708184"   # 默认: eightdoor
 IMAGE_NAME: "siyuan"           # 默认: siyuan
 ```
 
 ### 你需要配置：
 
-| 类型 | 名称 | 你的值 |
-|------|------|--------|
-| Secret | `DOCKERHUB_TOKEN` | 你的 Docker Hub Token |
-| Variable | `DOCKER_USERNAME` | `851708184` |
+| 类型 | 名称 | 说明 |
+|------|------|------|
+| Secret | `DOCKER_USERNAME` | Docker Hub 用户名 |
+| Secret | `DOCKERHUB_TOKEN` | Docker Hub Access Token |
+| Variable | `IMAGE_NAME` | 镜像名称（可选，默认 siyuan） |
