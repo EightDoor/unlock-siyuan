@@ -33,7 +33,7 @@ on:
 
 env:
   IMAGE_NAME: siyuan
-  DOCKER_USERNAME: 851708184@qq.com
+  DOCKER_USERNAME: 851708184
   repo_owner: EightDoor
   repo_name: unlock-siyuan
   package_json: app/package.json
