@@ -21,7 +21,9 @@ mkdir /artifacts
 mv appearance stage guide changelogs /artifacts/
 EORUN
 
-FROM golang:rc-alpine AS go-build
+FROM golang:1.25.1-alpine AS go-build
+
+ENV GOTOOLCHAIN=local
 
 RUN <<EORUN
 #!/bin/sh -e
