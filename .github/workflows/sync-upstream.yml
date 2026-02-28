@@ -55,7 +55,7 @@ jobs:
         run: |
           git checkout ${{ steps.branch.outputs.name }}
           
-          if git merge upstream/${{ env.UPSTREAM_BRANCH }} --no-edit -m "chore: sync upstream"; then
+          if git merge upstream/${{ env.UPSTREAM_BRANCH }} --allow-unrelated-histories --no-edit -m "chore: sync upstream"; then
             echo "success=true" >> $GITHUB_OUTPUT
             echo "✅ Merge successful"
           else
