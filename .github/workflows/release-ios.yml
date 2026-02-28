@@ -1,0 +1,99 @@
+name: Release iOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version/tag (e.g. v3.5.8)"
+        required: true
+      packageManager:
+        description: "pnpm version (e.g. pnpm@10.30.1)"
+        required: true
+
+env:
+  repo_owner: EightDoor
+  repo_name: unlock-siyuan
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          path: repo
+
+      - name: Clone upstream and apply patches
+        run: |
+          cd ${{ github.workspace }}/repo
+          
+          git clone --branch ${{ github.event.inputs.version }} --depth=1 https://github.com/siyuan-note/siyuan.git
+          cd siyuan
+          
+          git apply ${{ github.workspace }}/repo/patches/siyuan/mock-vip-user.patch
+          git apply ${{ github.workspace }}/repo/patches/siyuan/disable-update.patch
+          git apply ${{ github.workspace }}/repo/patches/siyuan/remove-stat.patch
+          
+          git status
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ github.workspace }}/repo/siyuan/kernel/go.mod
+          cache-dependency-path: "**/*.sum"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install pnpm
+        run: npm install -g ${{ github.event.inputs.packageManager }}
+
+      - name: Install Node Dependencies
+        run: pnpm install --no-frozen-lockfile
+        working-directory: ${{ github.workspace }}/repo/siyuan/app
+
+      - name: Building UI
+        run: pnpm run build:mobile
+        working-directory: ${{ github.workspace }}/repo/siyuan/app
+
+      - name: Building Kernel
+        run: |
+          cd kernel
+          go mod tidy
+          go build -tags fts5 -v -ldflags "-s -w -X github.com/siyuan-note/siyuan/kernel/util.Mode=prod"
+          mkdir -p ../app/ios/Kernel
+          mv kernel ../app/ios/Kernel/
+        working-directory: ${{ github.workspace }}/repo/siyuan
+        env:
+          GO111MODULE: on
+          CGO_ENABLED: 1
+          GOOS: darwin
+          GOARCH: arm64
+
+      - name: Building iOS
+        run: |
+          cd ${{ github.workspace }}/repo/siyuan/app
+          pnpm run build:ios
+        continue-on-error: true
+
+      - name: Get Release
+        id: get_release
+        uses: joutvhu/get-release@v1
+        with:
+          tag_name: ${{ github.event.inputs.version }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload IPA
+        if: hashFiles('${{ github.workspace }}/repo/siyuan/app/build/*.ipa') != ''
+        uses: shogo82148/actions-upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.get_release.outputs.upload_url }}
+          asset_name: siyuan-${{ github.event.inputs.version }}-ios.ipa
+          asset_path: ${{ github.workspace }}/repo/siyuan/app/build/*.ipa
+          asset_content_type: application/octet-stream

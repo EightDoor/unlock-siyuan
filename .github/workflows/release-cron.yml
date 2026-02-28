@@ -1,0 +1,151 @@
+name: Release Cron
+
+on:
+  schedule:
+    - cron: "0 12 * * 2,5"
+  workflow_dispatch:
+
+jobs:
+  check-release:
+    name: Check version and create release
+    runs-on: ubuntu-latest
+    if: github.repository == 'EightDoor/unlock-siyuan'
+    outputs:
+      release_version: ${{ steps.version.outputs.release_version }}
+      package_manager: ${{ steps.version.outputs.package_manager }}
+      should_release: ${{ steps.version.outputs.should_release }}
+    
+    steps:
+      - name: Check version
+        id: version
+        run: |
+          # Get released version
+          releasedVersion=$(wget -qO- -t3 -T30 "https://api.github.com/repos/${GITHUB_REPOSITORY}/releases/latest" 2>/dev/null | grep "tag_name" | head -n 1 | awk -F ":" '{print $2}' | sed 's/\"//g;s/,//g;s/ //g' || echo "")
+          
+          # Get latest upstream version
+          packageJson=$(wget -qO- -t3 -T30 "https://raw.githubusercontent.com/siyuan-note/siyuan/master/app/package.json")
+          packageVersion=$(echo "${packageJson}" | grep '"version"' | head -n 1 | awk -F ":" '{print $2}' | sed 's/\"//g;s/,//g;s/ //g')
+          
+          # Get packageManager
+          packageManager=$(echo "${packageJson}" | grep '"packageManager"' | head -n 1 | awk -F ":" '{print $2}' | sed 's/\"//g;s/,//g;s/ //g')
+          
+          echo "releasedVersion: ${releasedVersion}"
+          echo "packageVersion: ${packageVersion}"
+          echo "packageManager: ${packageManager}"
+          
+          # Check if new release needed
+          if [ "${releasedVersion}" = "v${packageVersion}" ]; then
+            echo "release_version=" >> $GITHUB_OUTPUT
+            echo "should_release=false" >> $GITHUB_OUTPUT
+            echo "No new version"
+          else
+            echo "release_version=v${packageVersion}" >> $GITHUB_OUTPUT
+            echo "should_release=true" >> $GITHUB_OUTPUT
+            echo "New version available: v${packageVersion}"
+          fi
+          
+          echo "package_manager=${packageManager}" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        id: create_release
+        if: steps.version.outputs.should_release == 'true'
+        uses: ncipollo/release-action@v1
+        with:
+          name: ${{ steps.version.outputs.release_version }}
+          tag: ${{ steps.version.outputs.release_version }}
+          body: |
+            ## 🔓 SiYuan Unlock Edition
+            
+            Based on upstream: [siyuan-note/siyuan](https://github.com/siyuan-note/siyuan)
+            
+            ### ✨ Modifications
+            - ✅ **VIP features unlocked** - Cloud sync, S3/WebDAV, and all premium features
+            - ✅ **Auto-download update disabled** - No automatic update downloads
+            
+            ### 🐳 Docker Images
+            
+            **Docker Hub:**
+            ```bash
+            docker pull 851708184/siyuan:${{ steps.version.outputs.release_version }}
+            docker pull 851708184/siyuan:latest
+            ```
+            
+            **GitHub Container Registry:**
+            ```bash
+            docker pull ghcr.io/eightdoor/unlock-siyuan:${{ steps.version.outputs.release_version }}
+            docker pull ghcr.io/eightdoor/unlock-siyuan:latest
+            ```
+            
+            ---
+            
+            > ⚠️ **Disclaimer**: This is an unofficial build for personal use only. 
+            > Please support the official project: https://b3log.org/siyuan/en/pricing.html
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  dispatch-builds:
+    needs: check-release
+    if: needs.check-release.outputs.should_release == 'true'
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Dispatch build workflows
+        run: |
+          VERSION="${{ needs.check-release.outputs.release_version }}"
+          PM="${{ needs.check-release.outputs.package_manager }}"
+          
+          echo "Dispatching builds for version: ${VERSION}"
+          
+          # Get workflow IDs
+          response=$(curl -s -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows")
+          
+          desktop_id=$(echo "$response" | jq -r '.workflows[] | select(.path | contains("desktop-release.yml")) | .id')
+          docker_id=$(echo "$response" | jq -r '.workflows[] | select(.path | contains("release-docker.yml")) | .id')
+          android_id=$(echo "$response" | jq -r '.workflows[] | select(.path | contains("release-android.yml")) | .id')
+          ios_id=$(echo "$response" | jq -r '.workflows[] | select(.path | contains("release-ios.yml")) | .id')
+          
+          # Dispatch desktop build
+          if [ -n "$desktop_id" ]; then
+            curl -s -X POST \
+              -H "Accept: application/vnd.github.v3+json" \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/${desktop_id}/dispatches" \
+              -d "{\"ref\": \"main\", \"inputs\": {\"version\": \"${VERSION}\", \"packageManager\": \"${PM}\"}}"
+            echo "Dispatched desktop build"
+          fi
+          
+          # Dispatch docker build
+          if [ -n "$docker_id" ]; then
+            curl -s -X POST \
+              -H "Accept: application/vnd.github.v3+json" \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/${docker_id}/dispatches" \
+              -d "{\"ref\": \"main\", \"inputs\": {\"version\": \"${VERSION}\"}}"
+            echo "Dispatched docker build"
+          fi
+          
+          # Dispatch android build
+          if [ -n "$android_id" ]; then
+            curl -s -X POST \
+              -H "Accept: application/vnd.github.v3+json" \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/${android_id}/dispatches" \
+              -d "{\"ref\": \"main\", \"inputs\": {\"version\": \"${VERSION}\", \"packageManager\": \"${PM}\"}}"
+            echo "Dispatched android build"
+          fi
+          
+          # Dispatch ios build
+          if [ -n "$ios_id" ]; then
+            curl -s -X POST \
+              -H "Accept: application/vnd.github.v3+json" \
+              -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/${ios_id}/dispatches" \
+              -d "{\"ref\": \"main\", \"inputs\": {\"version\": \"${VERSION}\", \"packageManager\": \"${PM}\"}}"
+            echo "Dispatched ios build"
+          fi
