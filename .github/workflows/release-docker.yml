@@ -83,7 +83,7 @@ jobs:
           tags: |
             ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.value }}
             ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
-            ghcr.io/${{ github.repository }}:${{ steps.version.outputs.value }}
-            ghcr.io/${{ github.repository }}:latest
+            ghcr.io/eightdoor/unlock-siyuan:${{ steps.version.outputs.value }}
+            ghcr.io/eightdoor/unlock-siyuan:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
