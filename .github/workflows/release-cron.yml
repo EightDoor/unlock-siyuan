@@ -90,6 +90,8 @@ jobs:
     needs: check-release
     if: needs.check-release.outputs.should_release == 'true'
     runs-on: ubuntu-latest
+    permissions:
+      actions: write
     
     steps:
       - name: Checkout repository
