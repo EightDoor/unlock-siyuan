@@ -9,6 +9,8 @@ jobs:
   check-release:
     name: Check version and create release
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     if: github.repository == 'EightDoor/unlock-siyuan'
     outputs:
       release_version: ${{ steps.version.outputs.release_version }}
