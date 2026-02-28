@@ -17,6 +17,8 @@ env:
 jobs:
   build:
     runs-on: ${{ matrix.config.os }}
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
