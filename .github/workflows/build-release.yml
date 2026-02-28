@@ -3,50 +3,31 @@ name: Build and Release
 on:
   push:
     tags:
-      - 'v*'
+      - 'v*-release'
   workflow_dispatch:
     inputs:
-      push_docker:
-        description: 'Push to Docker Hub'
-        required: false
-        default: true
-        type: boolean
-      push_ghcr:
-        description: 'Push to GitHub Container Registry'
-        required: false
-        default: true
-        type: boolean
-      build_platforms:
-        description: 'Docker build platforms'
-        required: false
-        default: 'linux/amd64'
-        type: choice
-        options:
-          - 'linux/amd64'
-          - 'linux/arm64'
-          - 'linux/amd64,linux/arm64'
-      build_desktop:
-        description: 'Build desktop applications'
-        required: false
-        default: true
-        type: boolean
+      version:
+        description: 'Version (e.g. 3.5.1)'
+        required: true
+        type: string
 
 env:
-  IMAGE_NAME: siyuan
-  DOCKER_USERNAME: 851708184
   repo_owner: EightDoor
   repo_name: unlock-siyuan
   package_json: app/package.json
+  DOCKER_USERNAME: 851708184
+  IMAGE_NAME: siyuan
 
 jobs:
-  build-docker:
+  create-release:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
-      packages: write
-    
+      contents: write
     outputs:
-      version: ${{ steps.version.outputs.version }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+      version: ${{ steps.version.outputs.value }}
+      release_version: ${{ steps.version.outputs.tag }}
+      packageManager: ${{ steps.packageManager.outputs.value }}
     
     steps:
       - name: Checkout repository
@@ -56,12 +37,81 @@ jobs:
         id: version
         run: |
           if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION="${{ github.ref_name }}"
+            TAG="${{ github.ref_name }}"
+            VERSION="${TAG%-release}"
+            VERSION="${VERSION#v}"
           else
-            VERSION="v$(date +%Y%m%d)-$(git rev-parse --short HEAD)"
+            VERSION="${{ inputs.version }}"
           fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "value=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=v${VERSION}-release" >> $GITHUB_OUTPUT
           echo "Version: ${VERSION}"
+          echo "Tag: v${VERSION}-release"
+      
+      - name: Extract packageManager from package.json
+        uses: sergeysova/jq-action@v2
+        id: packageManager
+        with:
+          cmd: "jq .packageManager ${{ env.package_json }} -r"
+      
+      - name: Create Release
+        id: create_release
+        uses: ncipollo/release-action@v1
+        with:
+          name: "SiYuan Unlock Edition ${{ steps.version.outputs.tag }}"
+          tag: ${{ steps.version.outputs.tag }}
+          body: |
+            ## 🔓 SiYuan Unlock Edition
+            
+            Based on upstream: [siyuan-note/siyuan](https://github.com/siyuan-note/siyuan)
+            
+            ### ✨ Modifications
+            - ✅ **VIP features unlocked** - Cloud sync, S3/WebDAV, and all premium features
+            - ✅ **Auto-download update disabled** - No automatic update downloads
+            
+            ### 🐳 Docker Images
+            
+            **Docker Hub:**
+            ```bash
+            docker pull ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ steps.version.outputs.value }}
+            docker pull ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            ```
+            
+            **GitHub Container Registry:**
+            ```bash
+            docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.value }}
+            docker pull ghcr.io/${{ github.repository }}:latest
+            ```
+            
+            ### 🚀 Quick Start
+            
+            ```bash
+            docker run -d \
+              -v /path/to/workspace:/siyuan/workspace \
+              -p 6806:6806 \
+              ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest \
+              --workspace=/siyuan/workspace \
+              --accessAuthCode=your_password
+            ```
+            
+            ---
+            
+            > ⚠️ **Disclaimer**: This is an unofficial build for personal use only. 
+            > Please support the official project: https://b3log.org/siyuan/en/pricing.html
+          draft: false
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build-docker:
+    needs: create-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
       
       - name: Free Disk Space
         uses: jlumbroso/free-disk-space@main
@@ -81,52 +131,42 @@ jobs:
         uses: docker/setup-buildx-action@v3
       
       - name: Login to Docker Hub
-        if: inputs.push_docker == true || startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v3
         with:
           username: ${{ env.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
       
       - name: Login to GitHub Container Registry
-        if: inputs.push_ghcr == true || startsWith(github.ref, 'refs/tags/')
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Extract metadata (tags, labels)
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: |
-            name=${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }},enable=${{ inputs.push_docker == true || startsWith(github.ref, 'refs/tags/') }}
-            name=ghcr.io/${{ github.repository }},enable=${{ inputs.push_ghcr == true || startsWith(github.ref, 'refs/tags/') }}
-          tags: |
-            type=raw,value=${{ steps.version.outputs.version }}
-            type=raw,value=latest,enable={{is_default_branch}}
-      
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
           context: .
-          platforms: ${{ inputs.build_platforms || 'linux/amd64' }}
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: |
+            ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:${{ needs.create-release.outputs.version }}
+            ${{ env.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+            ghcr.io/${{ github.repository }}:${{ needs.create-release.outputs.version }}
+            ghcr.io/${{ github.repository }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  build-desktop:
-    needs: build-docker
-    if: inputs.build_desktop == true || startsWith(github.ref, 'refs/tags/')
+  build:
     runs-on: ${{ matrix.config.os }}
+    name: ${{ matrix.config.name }}
+    needs: create-release
     strategy:
       fail-fast: false
       matrix:
         config:
           - os: ubuntu-22.04
-            name: linux.AppImage
+            name: ubuntu build linux.AppImage
             kernel_path: "../app/kernel-linux/SiYuan-Kernel"
             build_args_prefix: "-s -w -X"
             build_args_suffix: "Mode=prod"
@@ -135,7 +175,7 @@ jobs:
             goarch: "amd64"
             suffix: "linux.AppImage"
           - os: ubuntu-22.04
-            name: linux.tar.gz
+            name: ubuntu build linux.tar.gz
             kernel_path: "../app/kernel-linux/SiYuan-Kernel"
             build_args_prefix: "-s -w -X"
             build_args_suffix: "Mode=prod"
@@ -144,7 +184,7 @@ jobs:
             goarch: "amd64"
             suffix: "linux.tar.gz"
           - os: macos-latest
-            name: mac.dmg
+            name: macos build mac.dmg
             kernel_path: "../app/kernel-darwin/SiYuan-Kernel"
             build_args_prefix: "-s -w -X"
             build_args_suffix: "Mode=prod"
@@ -153,7 +193,7 @@ jobs:
             goarch: "amd64"
             suffix: "mac.dmg"
           - os: macos-latest
-            name: mac-arm64.dmg
+            name: macos build mac-arm64.dmg
             kernel_path: "../app/kernel-darwin-arm64/SiYuan-Kernel"
             build_args_prefix: "-s -w -X"
             build_args_suffix: "Mode=prod"
@@ -162,7 +202,7 @@ jobs:
             goarch: "arm64"
             suffix: "mac-arm64.dmg"
           - os: windows-latest
-            name: win.exe
+            name: windows build win.exe
             kernel_path: "../app/kernel/SiYuan-Kernel.exe"
             build_args_prefix: "-s -w -H=windowsgui -X"
             build_args_suffix: "Mode=prod"
@@ -188,10 +228,11 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: ${{ github.workspace }}/go/src/github.com/${{ env.repo_owner }}/${{ env.repo_name }}/kernel/go.mod
+      - run: go version
 
       - name: Set up goversioninfo
-        if: contains(matrix.config.goos, 'windows')
         run: go get github.com/josephspurrier/goversioninfo/cmd/goversioninfo && go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo
+        if: contains(matrix.config.goos, 'windows')
         working-directory: ${{ github.workspace }}/go/src/github.com/${{ env.repo_owner }}/${{ env.repo_name }}/kernel
         env:
           GO111MODULE: on
@@ -205,15 +246,8 @@ jobs:
         with:
           node-version: 20
 
-      - name: Extract packageManager from package.json
-        id: packageManager
-        run: |
-          PM=$(cat ${{ github.workspace }}/go/src/github.com/${{ env.repo_owner }}/${{ env.repo_name }}/${{ env.package_json }} | jq -r '.packageManager')
-          echo "packageManager=${PM}" >> $GITHUB_OUTPUT
-        shell: bash
-
       - name: Install Node pnpm
-        run: npm install -g ${{ steps.packageManager.outputs.packageManager }}
+        run: npm install -g ${{ needs.create-release.outputs.packageManager }}
         working-directory: ${{ github.workspace }}/go/src/github.com/${{ env.repo_owner }}/${{ env.repo_name }}/app
 
       - name: Install Node Dependencies
@@ -249,11 +283,11 @@ jobs:
         with:
           path: ${{ github.workspace }}/go/src/github.com/${{ env.repo_owner }}/${{ env.repo_name }}/app/kernel-darwin-arm64
 
-      - name: Generate Icon Resource For Windows
-        if: contains(matrix.config.goos, 'windows')
+      - name: Generate Icon Resource and Properties/Version Info For Windows
         run: ${{ github.workspace }}\go\${{ matrix.config.gobin }}\goversioninfo -platform-specific=true -icon="resource\icon.ico" -manifest="resource\goversioninfo.exe.manifest"
+        if: contains(matrix.config.goos, 'windows')
         working-directory: ${{ github.workspace }}/go/src/github.com/${{ env.repo_owner }}/${{ env.repo_name }}/kernel
-
+      
       - name: Building Kernel
         run: go build --tags fts5 -o "${{ matrix.config.kernel_path }}" -v -ldflags "${{ matrix.config.build_args_prefix }} github.com/${{ env.repo_owner }}/${{ env.repo_name }}/kernel/util.${{ matrix.config.build_args_suffix }}"
         working-directory: ${{ github.workspace }}/go/src/github.com/${{ env.repo_owner }}/${{ env.repo_name }}/kernel
@@ -263,116 +297,17 @@ jobs:
           GOOS: ${{ matrix.config.goos }}
           GOPATH: ${{ github.workspace }}/go
           GOARCH: ${{ matrix.config.goarch }}
-
+      
       - name: Building Electron App
         run: pnpm run ${{ matrix.config.electron_args }}
         working-directory: ${{ github.workspace }}/go/src/github.com/${{ env.repo_owner }}/${{ env.repo_name }}/app
 
-      - name: Extract app version
-        id: app_version
-        run: |
-          VER=$(cat ${{ github.workspace }}/go/src/github.com/${{ env.repo_owner }}/${{ env.repo_name }}/${{ env.package_json }} | jq -r '.version')
-          echo "version=${VER}" >> $GITHUB_OUTPUT
-        shell: bash
-
-      - name: Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: siyuan-${{ matrix.config.suffix }}
-          path: ${{ github.workspace }}/go/src/github.com/${{ env.repo_owner }}/${{ env.repo_name }}/app/build/siyuan-${{ steps.app_version.outputs.version }}-${{ matrix.config.suffix }}
-
-  create-release:
-    needs: [build-docker, build-desktop]
-    if: always() && needs.build-docker.result == 'success'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Download all artifacts
-        if: needs.build-desktop.result == 'success'
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: Get version info
-        id: version
-        run: |
-          if [[ "${{ github.ref }}" == refs/tags/* ]]; then
-            VERSION="${{ github.ref_name }}"
-          else
-            VERSION="${{ needs.build-docker.outputs.version }}"
-          fi
-          echo "version=${VERSION}" >> $GITHUB_OUTPUT
-          echo "Version: ${VERSION}"
-
-      - name: Generate changelog
-        id: changelog
-        run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
-          if [ -n "$PREV_TAG" ]; then
-            echo "changelog<<EOF" >> $GITHUB_OUTPUT
-            git log --pretty=format:"- %s (%h)" $PREV_TAG..HEAD >> $GITHUB_OUTPUT
-            echo "" >> $GITHUB_OUTPUT
-            echo "EOF" >> $GITHUB_OUTPUT
-          else
-            echo "changelog=Initial release" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: "SiYuan Unlock Edition ${{ steps.version.outputs.version }}"
-          body: |
-            ## 🔓 SiYuan Unlock Edition
-            
-            Based on upstream: [siyuan-note/siyuan](https://github.com/siyuan-note/siyuan)
-            
-            ### ✨ Modifications
-            - ✅ **VIP features unlocked** - Cloud sync, S3/WebDAV, and all premium features
-            - ✅ **Auto-download update disabled** - No automatic update downloads
-            
-            ### 🐳 Docker Images
-            
-            **Docker Hub:**
-            ```bash
-            docker pull 851708184/siyuan:${{ steps.version.outputs.version }}
-            docker pull 851708184/siyuan:latest
-            ```
-            
-            **GitHub Container Registry:**
-            ```bash
-            docker pull ghcr.io/${{ github.repository }}:${{ steps.version.outputs.version }}
-            docker pull ghcr.io/${{ github.repository }}:latest
-            ```
-            
-            ### 🚀 Quick Start
-            
-            ```bash
-            docker run -d \
-              -v /path/to/workspace:/siyuan/workspace \
-              -p 6806:6806 \
-              851708184/siyuan:latest \
-              --workspace=/siyuan/workspace \
-              --accessAuthCode=your_password
-            ```
-            
-            ### 📝 Changelog
-            ${{ steps.changelog.outputs.changelog }}
-            
-            ---
-            
-            > ⚠️ **Disclaimer**: This is an unofficial build for personal use only. 
-            > Please support the official project: https://b3log.org/siyuan/en/pricing.html
-          draft: false
-          prerelease: false
-          files: |
-            artifacts/**/*
+      - name: Upload Release
+        uses: actions/upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ needs.create-release.outputs.upload_url }}
+          asset_name: siyuan-${{ needs.create-release.outputs.version }}-${{ matrix.config.suffix }}
+          asset_path: ${{ github.workspace }}/go/src/github.com/${{ env.repo_owner }}/${{ env.repo_name }}/app/build/siyuan-${{ needs.create-release.outputs.version }}-${{ matrix.config.suffix }}
+          asset_content_type: application/octet-stream

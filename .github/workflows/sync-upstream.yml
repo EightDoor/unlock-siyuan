@@ -1,27 +1,33 @@
 name: Sync Upstream
 
 on:
-  schedule:
-    # 每7天检查一次 (UTC 时间每周一 00:00)
-    - cron: '0 0 * * 1'
   workflow_dispatch:
     inputs:
-      force_sync:
-        description: 'Force sync even if no new version'
+      create_tag:
+        description: 'Create release tag after sync'
         required: false
-        default: 'false'
+        default: true
         type: boolean
+      version:
+        description: 'Version (e.g. 3.5.1), leave empty to use package.json version'
+        required: false
+        type: string
 
 env:
   UPSTREAM_REPO: siyuan-note/siyuan
   UPSTREAM_BRANCH: master
 
 jobs:
-  check-and-sync:
+  sync:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      actions: write
+    
+    outputs:
+      merge_success: ${{ steps.merge.outputs.success }}
+      version: ${{ steps.version.outputs.value }}
+      tag: ${{ steps.version.outputs.tag }}
+      tag_created: ${{ steps.create_tag.outputs.created }}
     
     steps:
       - name: Checkout repository
@@ -30,165 +36,89 @@ jobs:
           fetch-depth: 0
           token: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Configure Git
+      - name: Configure git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
       
       - name: Add upstream remote
         run: |
-          git remote add upstream https://github.com/${{ env.UPSTREAM_REPO }}.git || true
-          git fetch upstream --tags
+          git remote add upstream https://github.com/${{ env.UPSTREAM_REPO }}.git 2>/dev/null || true
+          git fetch upstream
       
-      - name: Get latest upstream version
-        id: upstream
+      - name: Get current branch
+        id: branch
+        run: echo "name=$(git rev-parse --abbrev-ref HEAD)" >> $GITHUB_OUTPUT
+      
+      - name: Merge upstream
+        id: merge
         run: |
-          # 获取上游最新的稳定版本 tag (v开头的)
-          LATEST_TAG=$(git ls-remote --tags upstream | grep -oP 'refs/tags/v\K[0-9]+\.[0-9]+\.[0-9]+$' | sort -V | tail -1)
-          echo "latest_tag=${LATEST_TAG}" >> $GITHUB_OUTPUT
-          echo "Latest upstream tag: v${LATEST_TAG}"
+          git checkout ${{ steps.branch.outputs.name }}
           
-          # 检查我们是否已经有这个 tag
-          if git rev-parse "v${LATEST_TAG}" >/dev/null 2>&1; then
-            echo "already_exists=true" >> $GITHUB_OUTPUT
-            echo "Tag v${LATEST_TAG} already exists in our repo"
+          if git merge upstream/${{ env.UPSTREAM_BRANCH }} --no-edit -m "chore: sync upstream"; then
+            echo "success=true" >> $GITHUB_OUTPUT
+            echo "✅ Merge successful"
           else
-            echo "already_exists=false" >> $GITHUB_OUTPUT
-            echo "New version available: v${LATEST_TAG}"
-          fi
-      
-      - name: Check if sync needed
-        id: check
-        run: |
-          if [ "${{ steps.upstream.outputs.already_exists }}" == "false" ] || [ "${{ inputs.force_sync }}" == "true" ]; then
-            echo "sync_needed=true" >> $GITHUB_OUTPUT
-          else
-            echo "sync_needed=false" >> $GITHUB_OUTPUT
-            echo "No sync needed - already up to date"
-          fi
-      
-      - name: Sync from upstream
-        if: steps.check.outputs.sync_needed == 'true'
-        run: |
-          LATEST_TAG="${{ steps.upstream.outputs.latest_tag }}"
-          
-          echo "📦 Syncing from upstream v${LATEST_TAG}..."
-          
-          # 获取上游 tag 对应的 commit
-          UPSTREAM_COMMIT=$(git rev-parse upstream/v${LATEST_TAG})
-          echo "Upstream commit: ${UPSTREAM_COMMIT}"
-          
-          # 创建同步分支
-          git checkout -b sync/v${LATEST_TAG}
-          
-          # 合并上游代码
-          git merge upstream/v${LATEST_TAG} --no-edit -m "chore: sync upstream v${LATEST_TAG}"
-          
-          echo "✅ Merge completed"
-      
-      - name: Apply patches
-        if: steps.check.outputs.sync_needed == 'true'
-        run: |
-          echo "🩹 Applying custom patches..."
-          
-          # 应用所有补丁
-          for patch in .patches/*.patch; do
-            if [ -f "$patch" ]; then
-              echo "Applying: $patch"
-              if git apply --check "$patch" 2>/dev/null; then
-                git apply "$patch"
-                echo "✓ Applied: $(basename $patch)"
-              else
-                echo "⚠ Patch may have conflicts: $(basename $patch)"
-                echo "Attempting to apply with 3-way merge..."
-                git apply --3way "$patch" || echo "❌ Failed to apply: $(basename $patch)"
-              fi
-            fi
-          done
-          
-          # 检查是否有更改
-          if [ -n "$(git status --porcelain)" ]; then
-            git add -A
-            git commit -m "chore: apply custom patches" || echo "No changes to commit"
-          fi
-      
-      - name: Verify VIP bypass
-        if: steps.check.outputs.sync_needed == 'true'
-        run: |
-          echo "🔍 Verifying VIP bypass..."
-          
-          # 检查 IsSubscriber 函数
-          if grep -q "return true" kernel/model/conf.go; then
-            echo "✅ VIP bypass verified"
-          else
-            echo "❌ VIP bypass not found! Manual intervention required."
+            echo "success=false" >> $GITHUB_OUTPUT
+            echo "❌ Merge failed, there may be conflicts"
             exit 1
           fi
       
-      - name: Create tag and push
-        if: steps.check.outputs.sync_needed == 'true'
+      - name: Push changes
+        if: steps.merge.outputs.success == 'true'
         run: |
-          LATEST_TAG="${{ steps.upstream.outputs.latest_tag }}"
-          
-          # 创建 tag
-          git tag -a "v${LATEST_TAG}" -m "Release v${LATEST_TAG} - Synced from upstream"
-          
-          # 推送分支和 tag
-          git push origin sync/v${LATEST_TAG} || true
-          git push origin v${LATEST_TAG}
-          
-          echo "✅ Created and pushed tag v${LATEST_TAG}"
+          git push origin ${{ steps.branch.outputs.name }}
+          echo "✅ Changes pushed to ${{ steps.branch.outputs.name }}"
       
-      - name: Create Pull Request
-        if: steps.check.outputs.sync_needed == 'true'
-        uses: peter-evans/create-pull-request@v5
-        with:
-          branch: sync/v${{ steps.upstream.outputs.latest_tag }}
-          title: "🔄 Sync upstream v${{ steps.upstream.outputs.latest_tag }}"
-          body: |
-            ## 🔄 Upstream Sync
-            
-            This PR syncs the latest changes from [siyuan-note/siyuan](https://github.com/siyuan-note/siyuan).
-            
-            ### Version
-            Upstream version: **v${{ steps.upstream.outputs.latest_tag }}**
-            
-            ### Changes
-            - Synced from upstream
-            - Applied custom patches (VIP bypass, disable auto-update)
-            
-            ### Checklist
-            - [ ] Verify patches applied correctly
-            - [ ] Test build locally
-            - [ ] Review any conflicts
-          labels: sync, automated
-          draft: false
+      - name: Get version
+        id: version
+        if: inputs.create_tag == true && steps.merge.outputs.success == 'true'
+        run: |
+          if [ -n "${{ inputs.version }}" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION=$(cat app/package.json | jq -r '.version')
+          fi
+          echo "value=${VERSION}" >> $GITHUB_OUTPUT
+          echo "tag=v${VERSION}-release" >> $GITHUB_OUTPUT
+          echo "Version: ${VERSION}"
+          echo "Tag: v${VERSION}-release"
+      
+      - name: Check if tag exists
+        id: check_tag
+        if: inputs.create_tag == true && steps.merge.outputs.success == 'true'
+        run: |
+          if git tag -l | grep -q "^v${{ steps.version.outputs.value }}-release$"; then
+            echo "exists=true" >> $GITHUB_OUTPUT
+            echo "⚠️ Tag v${{ steps.version.outputs.value }}-release already exists"
+          else
+            echo "exists=false" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Create and push tag
+        id: create_tag
+        if: inputs.create_tag == true && steps.merge.outputs.success == 'true' && steps.check_tag.outputs.exists != 'true'
+        run: |
+          git tag ${{ steps.version.outputs.tag }}
+          git push origin ${{ steps.version.outputs.tag }}
+          echo "created=true" >> $GITHUB_OUTPUT
+          echo "✅ Tag ${{ steps.version.outputs.tag }} created and pushed"
+          echo "🚀 Build workflow will be triggered automatically"
       
       - name: Summary
         run: |
           echo "## 📋 Sync Summary" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [ "${{ steps.check.outputs.sync_needed }}" == "true" ]; then
-            echo "✅ **New version detected and synced!**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "- **Upstream version**: v${{ steps.upstream.outputs.latest_tag }}" >> $GITHUB_STEP_SUMMARY
-            echo "- **Pull Request**: Created for review" >> $GITHUB_STEP_SUMMARY
-            echo "- **Tag**: v${{ steps.upstream.outputs.latest_tag }} created" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "ℹ️ **Already up to date**" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "Current version matches upstream: v${{ steps.upstream.outputs.latest_tag }}" >> $GITHUB_STEP_SUMMARY
+          echo "| Item | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Upstream | \`${{ env.UPSTREAM_REPO }}/${{ env.UPSTREAM_BRANCH }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Merge | ${{ steps.merge.outputs.success == 'true' && '✅ Success' || '❌ Failed' }} |" >> $GITHUB_STEP_SUMMARY
+          if [ "${{ inputs.create_tag }}" == "true" ] && [ "${{ steps.merge.outputs.success }}" == "true" ]; then
+            echo "| Version | \`${{ steps.version.outputs.value }}\` |" >> $GITHUB_STEP_SUMMARY
+            echo "| Tag | \`${{ steps.version.outputs.tag }}\` |" >> $GITHUB_STEP_SUMMARY
+            if [ "${{ steps.check_tag.outputs.exists }}" == "true" ]; then
+              echo "| Tag Status | ⚠️ Already exists |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "| Tag Status | ✅ Created |" >> $GITHUB_STEP_SUMMARY
+            fi
           fi
-
-  notify:
-    needs: check-and-sync
-    runs-on: ubuntu-latest
-    if: always()
-    
-    steps:
-      - name: Send notification on new version
-        if: needs.check-and-sync.outputs.sync_needed == 'true'
-        run: |
-          echo "📢 New version synced! Check the Pull Request for review."
-          # 可以在这里添加通知逻辑，如发送到 Slack/Discord/Email
