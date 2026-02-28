@@ -122,6 +122,7 @@ jobs:
     if: inputs.build_desktop == true || startsWith(github.ref, 'refs/tags/')
     runs-on: ${{ matrix.config.os }}
     strategy:
+      fail-fast: false
       matrix:
         config:
           - os: ubuntu-22.04
@@ -190,7 +191,7 @@ jobs:
 
       - name: Set up goversioninfo
         if: contains(matrix.config.goos, 'windows')
-        run: go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo
+        run: go get github.com/josephspurrier/goversioninfo/cmd/goversioninfo && go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo
         working-directory: ${{ github.workspace }}/go/src/github.com/${{ env.repo_owner }}/${{ env.repo_name }}/kernel
         env:
           GO111MODULE: on
