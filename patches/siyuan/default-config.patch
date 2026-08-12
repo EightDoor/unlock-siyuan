@@ -1,5 +1,5 @@
 diff --git forkSrcPrefix/kernel/conf/account.go forkDstPrefix/kernel/conf/account.go
-index 5e3b51f..d4f4e00 100644
+index c4590e2..133208f 100644
 --- forkSrcPrefix/kernel/conf/account.go
 +++ forkDstPrefix/kernel/conf/account.go
 @@ -23,7 +23,7 @@ type Account struct {
@@ -13,10 +13,10 @@ index 5e3b51f..d4f4e00 100644
  	}
  }
 diff --git forkSrcPrefix/kernel/conf/appearance.go forkDstPrefix/kernel/conf/appearance.go
-index c3de55f..d48274f 100644
+index 908de47..3c78582 100644
 --- forkSrcPrefix/kernel/conf/appearance.go
 +++ forkDstPrefix/kernel/conf/appearance.go
-@@ -48,8 +48,8 @@ func NewAppearance() *Appearance {
+@@ -50,8 +50,8 @@ func NewAppearance() *Appearance {
  		Icon:                "litheness",
  		CodeBlockThemeLight: "github",
  		CodeBlockThemeDark:  "base16/dracula",
@@ -28,10 +28,10 @@ index c3de55f..d48274f 100644
  		HideStatusBar:       false,
  		StatusBar:           &util.StatusBar{},
 diff --git forkSrcPrefix/kernel/conf/sync.go forkDstPrefix/kernel/conf/sync.go
-index 1f23e96..7e40b43 100644
+index b076c5e..662b300 100644
 --- forkSrcPrefix/kernel/conf/sync.go
 +++ forkDstPrefix/kernel/conf/sync.go
-@@ -37,8 +37,8 @@ func NewSync() *Sync {
+@@ -38,8 +38,8 @@ func NewSync() *Sync {
  		Enabled:             false,
  		Perception:          false,
  		Mode:                1,
@@ -40,5 +40,5 @@ index 1f23e96..7e40b43 100644
 +		GenerateConflictDoc: true,
 +		Provider:            ProviderS3,
  		Interval:            30,
+ 		LAN:                 &LANSync{MaxConcurrentReqs: 16},
  	}
- }

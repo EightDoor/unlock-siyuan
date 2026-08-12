@@ -1,8 +1,8 @@
 diff --git forkSrcPrefix/kernel/api/setting.go forkDstPrefix/kernel/api/setting.go
-index 6fcef13..3f19ff7 100644
+index a67710b..791f0b0 100644
 --- forkSrcPrefix/kernel/api/setting.go
 +++ forkDstPrefix/kernel/api/setting.go
-@@ -768,7 +768,7 @@ func getPublish(c *gin.Context) {
+@@ -958,7 +958,7 @@ func getPublish(c *gin.Context) {
  	}
  }
  
@@ -11,7 +11,7 @@ index 6fcef13..3f19ff7 100644
  	ret := gulu.Ret.NewResult()
  	defer c.JSON(http.StatusOK, ret)
  
-@@ -790,6 +790,48 @@ func getCloudUser(c *gin.Context) {
+@@ -980,6 +980,48 @@ func getCloudUser(c *gin.Context) {
  	ret.Data = model.Conf.GetUser()
  }
  
@@ -24,30 +24,30 @@ index 6fcef13..3f19ff7 100644
 +	}
 +
 +	user := &conf.User{
-+			UserId: "0",
-+			UserName: "_",
-+			UserAvatarURL: "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
-+			UserHomeBImgURL: "",
-+			UserTitles: []*conf.UserTitle{},
-+			UserIntro: "",
-+			UserNickname: "",
-+			UserCreateTime: "29991231 00:00:00",
-+			UserSiYuanProExpireTime: -1,
-+			UserToken: "token",
-+			UserTokenExpireTime: "32503593600",
-+			UserSiYuanRepoSize: 0,
-+			UserSiYuanPointExchangeRepoSize: 0,
-+			UserSiYuanAssetSize: 0,
-+			UserTrafficUpload: 0,
-+			UserTrafficDownload: 0,
-+			UserTrafficAPIGet: 0,
-+			UserTrafficAPIPut: 0,
-+			UserTrafficTime: 0,
-+			UserSiYuanSubscriptionPlan: 0,
-+			UserSiYuanSubscriptionStatus: 0,
-+			UserSiYuanSubscriptionType: 1,
-+			UserSiYuanOneTimePayStatus: 1,
-+		}
++		UserId:                        "0",
++		UserName:                      "_",
++		UserAvatarURL:                 "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
++		UserHomeBImgURL:               "",
++		UserTitles:                    []*conf.UserTitle{},
++		UserIntro:                     "",
++		UserNickname:                  "",
++		UserCreateTime:                "29991231 00:00:00",
++		UserSiYuanProExpireTime:       -1,
++		UserToken:                     "token",
++		UserTokenExpireTime:           "32503593600",
++		UserSiYuanRepoSize:            0,
++		UserSiYuanPointExchangeRepoSize: 0,
++		UserSiYuanAssetSize:           0,
++		UserTrafficUpload:             0,
++		UserTrafficDownload:           0,
++		UserTrafficAPIGet:             0,
++		UserTrafficAPIPut:             0,
++		UserTrafficTime:               0,
++		UserSiYuanSubscriptionPlan:    0,
++		UserSiYuanSubscriptionStatus:  0,
++		UserSiYuanSubscriptionType:    1,
++		UserSiYuanOneTimePayStatus:    1,
++	}
 +
 +	model.Conf.User = user
 +	data, _ := gulu.JSON.MarshalJSON(user)
