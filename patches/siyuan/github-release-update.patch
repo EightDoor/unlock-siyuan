@@ -1,0 +1,332 @@
+diff --git a/kernel/model/updater.go b/kernel/model/updater.go
+index 8a39a62..9ed2145 100644
+--- a/kernel/model/updater.go
++++ b/kernel/model/updater.go
+@@ -19,12 +19,14 @@ package model
+ import (
+ 	"context"
+ 	"crypto/sha256"
++	"encoding/json"
+ 	"errors"
+ 	"fmt"
+ 	"io"
+ 	"os"
+ 	"path"
+ 	"path/filepath"
++	"runtime"
+ 	"strings"
+ 	"sync"
+ 	"time"
+@@ -104,32 +106,39 @@ func checkDownloadInstallPkg(notifyPackageUnavailable bool) {
+ }
+ 
+ func getUpdatePkg() (downloadPkgURLs []string, checksum string, err error) {
+-	release, err := getUpdateRelease(false)
+-	if err != nil {
++	defer logging.Recover()
++
++	release, fetchErr := fetchLatestRelease(context.TODO())
++	if fetchErr != nil {
++		err = fetchErr
++		logging.LogErrorf("fetch latest release failed: %s", err)
+ 		return
+ 	}
+-
+-	if isVersionUpToDate(release.Version) {
+-		err = fmt.Errorf("version is up to date")
++	if release.Draft || release.Prerelease {
++		err = errors.New("no stable release")
+ 		return
+ 	}
+ 
+-	pkgName := currentInstallPackageName(release.Version)
+-	if "" == pkgName {
+-		err = fmt.Errorf("%w for the current platform", errUpdatePackageUnavailable)
++	ver, parseErr := parseTagVersion(release.TagName)
++	if parseErr != nil {
++		err = parseErr
+ 		return
+ 	}
+-	pkg := release.Packages[pkgName]
+-	if nil == pkg || 0 == len(pkg.URLs) {
+-		err = fmt.Errorf("%w: [%s]", errUpdatePackageUnavailable, pkgName)
++	if isVersionUpToDate(ver) {
++		err = errors.New("version is up to date")
+ 		return
+ 	}
+-	if "" == pkg.Checksum {
+-		err = fmt.Errorf("%w: [%s] checksum is unavailable", errUpdatePackageUnavailable, pkgName)
++
++	asset, assetErr := selectReleaseAsset(release.Assets, ver, runtime.GOOS, runtime.GOARCH)
++	if assetErr != nil {
++		err = assetErr
+ 		return
+ 	}
+-	downloadPkgURLs = append(downloadPkgURLs, pkg.URLs...)
+-	checksum = pkg.Checksum
++	checksum, err = parseSha256Digest(asset.Digest)
++	if err != nil {
++		return
++	}
++	downloadPkgURLs = []string{asset.BrowserDownloadURL}
+ 	return
+ }
+ 
+@@ -238,16 +247,28 @@ func CheckUpdate(showMsg bool) {
+ 		return
+ 	}
+ 
+-	release, err := getUpdateRelease(showMsg)
++	release, err := fetchLatestRelease(context.TODO())
+ 	if err != nil {
++		logging.LogErrorf("check update failed: %s", err)
++		util.PushUpdateMsg("update-notify", Conf.Language(10), 3000)
++		return
++	}
++	if release.Draft || release.Prerelease {
+ 		return
+ 	}
+ 
+-	if isVersionUpToDate(release.Version) {
++	ver, parseErr := parseTagVersion(release.TagName)
++	if parseErr != nil {
++		logging.LogErrorf("check update invalid tag: %s", parseErr)
++		return
++	}
++	if isVersionUpToDate(ver) {
+ 		util.PushUpdateMsg("update-notify", Conf.Language(10), 3000)
+-	} else {
+-		pushNewVersionNotification(release)
++		return
+ 	}
++
++	link := "<a href=\"" + release.HTMLURL + "\">" + release.TagName + "</a>"
++	util.PushUpdateMsg("update-notify", fmt.Sprintf(Conf.Language(9), link), 15000)
+ 	go func() {
+ 		defer logging.Recover()
+ 		checkDownloadInstallPkg(false)
+@@ -287,3 +308,117 @@ func skipNewVerInstallPkg() bool {
+ 	}
+ 	return false
+ }
++
++// githubReleaseRepo 是从自有 GitHub Release 拉取更新的仓库。
++// 该仓库固定为 EightDoor/unlock-siyuan，不需要配置项。
++const githubReleaseRepo = "EightDoor/unlock-siyuan"
++
++// githubReleaseAPI 是 GitHub 公开的 latest release 接口。
++const githubReleaseAPI = "https://api.github.com/repos/" + githubReleaseRepo + "/releases/latest"
++
++// releasePayload 表示 GitHub releases/latest 响应的最小子集。
++type releasePayload struct {
++	TagName    string         `json:"tag_name"`
++	HTMLURL    string         `json:"html_url"`
++	Draft      bool           `json:"draft"`
++	Prerelease bool           `json:"prerelease"`
++	Assets     []releaseAsset `json:"assets"`
++}
++
++// releaseAsset 表示单个 Release 资产。
++type releaseAsset struct {
++	Name               string `json:"name"`
++	BrowserDownloadURL string `json:"browser_download_url"`
++	Digest             string `json:"digest"`
++}
++
++// parseTagVersion 从 tag 中去掉 v 前缀并校验为合法 semver。
++func parseTagVersion(tag string) (string, error) {
++	if "" == tag {
++		return "", errors.New("empty tag")
++	}
++	v := strings.TrimPrefix(tag, "v")
++	if !semver.IsValid("v" + v) {
++		return "", fmt.Errorf("invalid semver tag %q", tag)
++	}
++	return v, nil
++}
++
++// parseSha256Digest 解析 GitHub Asset 的 digest 字段，仅支持 sha256 格式。
++func parseSha256Digest(digest string) (string, error) {
++	const prefix = "sha256:"
++	if !strings.HasPrefix(digest, prefix) {
++		return "", fmt.Errorf("unsupported digest %q", digest)
++	}
++	hex := strings.TrimPrefix(digest, prefix)
++	if len(hex) != 64 {
++		return "", fmt.Errorf("invalid sha256 length for digest %q", digest)
++	}
++	return strings.ToLower(hex), nil
++}
++
++// platformAssetNames 列出当前平台预期匹配的资产名，按优先级排序。
++func platformAssetNames(version, goos, goarch string) []string {
++	switch goos {
++	case "windows":
++		if goarch == "arm64" {
++			return []string{"siyuan-" + version + "-win-arm64.exe"}
++		}
++		return []string{"siyuan-" + version + "-win.exe"}
++	case "darwin":
++		if goarch == "arm64" {
++			return []string{"siyuan-v" + version + "-mac-arm64.dmg"}
++		}
++		return []string{"siyuan-v" + version + "-mac.dmg"}
++	case "linux":
++		if goarch == "arm64" {
++			return []string{"siyuan-v" + version + "-linux-arm64.tar.gz"}
++		}
++		return []string{
++			"siyuan-v" + version + "-linux.tar.gz",
++			"siyuan-v" + version + "-linux.AppImage",
++		}
++	}
++	return nil
++}
++
++// selectReleaseAsset 在给定的 Release 资产中按当前平台选择匹配项。
++func selectReleaseAsset(assets []releaseAsset, version, goos, goarch string) (releaseAsset, error) {
++	names := platformAssetNames(version, goos, goarch)
++	if len(names) == 0 {
++		return releaseAsset{}, fmt.Errorf("unsupported platform %s/%s", goos, goarch)
++	}
++	index := make(map[string]releaseAsset, len(assets))
++	for _, a := range assets {
++		index[a.Name] = a
++	}
++	for _, n := range names {
++		if a, ok := index[n]; ok {
++			return a, nil
++		}
++	}
++	return releaseAsset{}, fmt.Errorf("no asset matches platform %s/%s in version %s", goos, goarch, version)
++}
++
++// fetchLatestRelease 拉取 GitHub releases/latest 响应。
++func fetchLatestRelease(ctx context.Context) (releasePayload, error) {
++	var payload releasePayload
++	client := req.C().SetTLSHandshakeTimeout(7 * time.Second).SetTimeout(15 * time.Second)
++	resp, err := client.R().
++		SetContext(ctx).
++		SetHeader("Accept", "application/vnd.github+json").
++		SetSuccessResult(&payload).
++		Get(githubReleaseAPI)
++	if err != nil {
++		return payload, err
++	}
++	if !resp.IsSuccessState() {
++		return payload, fmt.Errorf("github release api status %d", resp.StatusCode)
++	}
++	if 0 == len(payload.TagName) {
++		if err := json.Unmarshal(resp.Bytes(), &payload); err != nil {
++			return payload, fmt.Errorf("decode release payload: %w", err)
++		}
++	}
++	return payload, nil
++}
+diff --git a/kernel/model/updater_test.go b/kernel/model/updater_test.go
+new file mode 100644
+index 0000000..6e27e92
+--- /dev/null
++++ b/kernel/model/updater_test.go
+@@ -0,0 +1,101 @@
++// SiYuan - Refactor your thinking
++// Copyright (c) 2020-present, b3log.org
++//
++// This program is free software: you can redistribute it and/or modify
++// it under the terms of the GNU Affero General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// This program is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU Affero General Public License for more details.
++//
++// You should have received a copy of the GNU Affero General Public License
++// along with this program.  If not, see <https://www.gnu.org/licenses/>.
++
++package model
++
++import "testing"
++
++func TestParseTagVersion(t *testing.T) {
++	cases := []struct {
++		in      string
++		want    string
++		wantErr bool
++	}{
++		{"v3.8.1", "3.8.1", false},
++		{"3.8.1", "3.8.1", false},
++		{"v3.8.1-z1", "", true},
++		{"", "", true},
++	}
++	for _, c := range cases {
++		got, err := parseTagVersion(c.in)
++		if (err != nil) != c.wantErr {
++			t.Fatalf("parseTagVersion(%q) err=%v wantErr=%v", c.in, err, c.wantErr)
++		}
++		if got != c.want {
++			t.Fatalf("parseTagVersion(%q) = %q want %q", c.in, got, c.want)
++		}
++	}
++}
++
++func TestParseSha256Digest(t *testing.T) {
++	fullHex := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
++	cases := []struct {
++		in      string
++		want    string
++		wantErr bool
++	}{
++		{"sha256:" + fullHex, fullHex, false},
++		{"sha256:abc", "", true},
++		{"sha1:abc", "", true},
++		{"", "", true},
++	}
++	for _, c := range cases {
++		got, err := parseSha256Digest(c.in)
++		if (err != nil) != c.wantErr {
++			t.Fatalf("parseSha256Digest(%q) err=%v wantErr=%v", c.in, err, c.wantErr)
++		}
++		if got != c.want {
++			t.Fatalf("parseSha256Digest(%q) = %q want %q", c.in, got, c.want)
++		}
++	}
++}
++
++func TestSelectReleaseAsset(t *testing.T) {
++	assets := []releaseAsset{
++		{Name: "siyuan-v3.8.1-mac-arm64.dmg", BrowserDownloadURL: "mac-arm64"},
++		{Name: "siyuan-3.8.1-win.exe", BrowserDownloadURL: "win"},
++		{Name: "siyuan-v3.8.1-linux.AppImage", BrowserDownloadURL: "appimage"},
++		{Name: "siyuan-v3.8.1-linux.tar.gz", BrowserDownloadURL: "targz"},
++		{Name: "siyuan-v3.8.1-linux-arm64.tar.gz", BrowserDownloadURL: "arm64-targz"},
++	}
++	cases := []struct {
++		goos, goarch string
++		wantURL      string
++		wantErr      bool
++	}{
++		{"windows", "amd64", "win", false},
++		{"darwin", "arm64", "mac-arm64", false},
++		{"darwin", "amd64", "", true},
++		{"linux", "amd64", "targz", false},
++		{"linux", "arm64", "arm64-targz", false},
++		{"freebsd", "amd64", "", true},
++	}
++	for _, c := range cases {
++		a, err := selectReleaseAsset(assets, "3.8.1", c.goos, c.goarch)
++		if c.wantErr {
++			if err == nil {
++				t.Fatalf("expected error for %s/%s", c.goos, c.goarch)
++			}
++			continue
++		}
++		if err != nil {
++			t.Fatalf("selectReleaseAsset(%s/%s) err=%v", c.goos, c.goarch, err)
++		}
++		if a.BrowserDownloadURL != c.wantURL {
++			t.Fatalf("selectReleaseAsset(%s/%s) = %s want %s", c.goos, c.goarch, a.BrowserDownloadURL, c.wantURL)
++		}
++	}
++}
