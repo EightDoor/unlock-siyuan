@@ -1,7 +1,7 @@
-diff --git a/kernel/model/updater.go b/kernel/model/updater.go
+diff --git forkSrcPrefix/kernel/model/updater.go forkDstPrefix/kernel/model/updater.go
 index 8a39a62..9ed2145 100644
---- a/kernel/model/updater.go
-+++ b/kernel/model/updater.go
+--- forkSrcPrefix/kernel/model/updater.go
++++ forkDstPrefix/kernel/model/updater.go
 @@ -19,12 +19,14 @@ package model
  import (
  	"context"
@@ -133,13 +133,14 @@ index 8a39a62..9ed2145 100644
 +	Digest             string `json:"digest"`
 +}
 +
-+// parseTagVersion 从 tag 中去掉 v 前缀并校验为合法 semver。
++// parseTagVersion 从 tag 中去掉 v 前缀并校验为合法 semver（不含 pre-release/build 元数据）。
 +func parseTagVersion(tag string) (string, error) {
 +	if "" == tag {
 +		return "", errors.New("empty tag")
 +	}
 +	v := strings.TrimPrefix(tag, "v")
-+	if !semver.IsValid("v" + v) {
++	full := "v" + v
++	if !semver.IsValid(full) || "" != semver.Prerelease(full) || "" != semver.Build(full) {
 +		return "", fmt.Errorf("invalid semver tag %q", tag)
 +	}
 +	return v, nil
@@ -223,11 +224,11 @@ index 8a39a62..9ed2145 100644
 +	}
 +	return payload, nil
 +}
-diff --git a/kernel/model/updater_test.go b/kernel/model/updater_test.go
+diff --git forkSrcPrefix/kernel/model/updater_test.go forkDstPrefix/kernel/model/updater_test.go
 new file mode 100644
 index 0000000..6e27e92
 --- /dev/null
-+++ b/kernel/model/updater_test.go
++++ forkDstPrefix/kernel/model/updater_test.go
 @@ -0,0 +1,101 @@
 +// SiYuan - Refactor your thinking
 +// Copyright (c) 2020-present, b3log.org
@@ -258,6 +259,7 @@ index 0000000..6e27e92
 +		{"v3.8.1", "3.8.1", false},
 +		{"3.8.1", "3.8.1", false},
 +		{"v3.8.1-z1", "", true},
++		{"v3.8.1+build.1", "", true},
 +		{"", "", true},
 +	}
 +	for _, c := range cases {
