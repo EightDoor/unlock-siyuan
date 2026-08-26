@@ -42,17 +42,27 @@ Get-ChildItem -Path $PATCHES_DIR -Filter "*.patch" | ForEach-Object {
     
     Write-Host "Applying: $patchName" -ForegroundColor Blue
     
-    # 使用 git apply
-    $checkResult = git apply --check $patch 2>&1
-    
-    if ($LASTEXITCODE -eq 0) {
-        git apply $patch
-        Write-Host "  Success: $patchName" -ForegroundColor Green
-        $SUCCESS++
-    } else {
-        Write-Host "  Failed: $patchName" -ForegroundColor Red
-        Write-Host "  This patch may have already been applied or conflicts exist." -ForegroundColor Yellow
-        $FAILED++
+    # 将上游 diff 的 a/、b/ 前缀转换为 forkSrcPrefix/、forkDstPrefix/
+    # 这样 patch 才能在 appdev/siyuan-unlock 兼容工具链下 git apply 通过
+    $tmp = [System.IO.Path]::GetTempFileName()
+    try {
+        (Get-Content $patch -Raw) `
+            -replace '\ba/', 'forkSrcPrefix/' `
+            -replace '\bb/', 'forkDstPrefix/' | Set-Content -NoNewline -Path $tmp
+        
+        $checkResult = git apply --check $tmp 2>&1
+        
+        if ($LASTEXITCODE -eq 0) {
+            git apply $tmp
+            Write-Host "  Success: $patchName" -ForegroundColor Green
+            $SUCCESS++
+        } else {
+            Write-Host "  Failed: $patchName" -ForegroundColor Red
+            Write-Host "  This patch may have already been applied or conflicts exist." -ForegroundColor Yellow
+            $FAILED++
+        }
+    } finally {
+        Remove-Item -Force -ErrorAction SilentlyContinue $tmp
     }
 }
 

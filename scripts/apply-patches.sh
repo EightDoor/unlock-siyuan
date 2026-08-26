@@ -38,8 +38,19 @@ for patch in "$PATCHES_DIR"/*.patch; do
         
         echo -e "${BLUE}Applying: $patch_name${NC}"
         
-        if git apply --check "$patch" 2>/dev/null; then
-            git apply "$patch"
+        # 将上游 diff 的 a/、b/ 前缀转换为 forkSrcPrefix/、forkDstPrefix/
+        # 这样 patch 才能在 appdev/siyuan-unlock 兼容工具链下 git apply 通过
+        tmp_patch=$(mktemp)
+        if ! sed -e 's#\ba/#forkSrcPrefix/#g' -e 's#\bb/#forkDstPrefix/#g' "$patch" > "$tmp_patch"; then
+            echo -e "${RED}✗ Failed: $patch_name${NC}"
+            echo -e "${YELLOW}  Unable to rewrite patch prefix.${NC}"
+            rm -f "$tmp_patch"
+            FAILED=$((FAILED + 1))
+            continue
+        fi
+        
+        if git apply --check "$tmp_patch" 2>/dev/null; then
+            git apply "$tmp_patch"
             echo -e "${GREEN}✓ Success: $patch_name${NC}"
             SUCCESS=$((SUCCESS + 1))
         else
@@ -47,6 +58,7 @@ for patch in "$PATCHES_DIR"/*.patch; do
             echo -e "${YELLOW}  This patch may have already been applied or conflicts exist.${NC}"
             FAILED=$((FAILED + 1))
         fi
+        rm -f "$tmp_patch"
     fi
 done
 
