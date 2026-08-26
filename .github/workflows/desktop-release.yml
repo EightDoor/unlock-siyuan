@@ -186,7 +186,7 @@ jobs:
           GOOS: ${{ matrix.config.goos }}
           GOPATH: ${{ github.workspace }}/go
           GOARCH: ${{ matrix.config.goarch }}
-          GOPROXY: https://mirrors.aliyun.com/goproxy/,https://goproxy.cn,https://proxy.golang.org,direct
+          GOPROXY: https://goproxy.cn,https://proxy.golang.org,direct
           CC: ${{ runner.os == 'Linux' && format('/usr/local/musl/{0}', matrix.config.cc_path) || '' }}
 
       - name: Building Electron
