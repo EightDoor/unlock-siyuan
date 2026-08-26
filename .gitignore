@@ -1,0 +1,3 @@
+# SiYuan Fork - Git ignore rules
+# Internal superpowers planning/spec docs are kept locally only.
+docs/superpowers/
