@@ -42,9 +42,13 @@ jobs:
           git clone --branch ${{ github.event.inputs.version }} --depth=1 https://github.com/siyuan-note/siyuan.git
           cd siyuan
           
-          git apply ${{ github.workspace }}/repo/patches/siyuan/disable-update.patch
-          git apply ${{ github.workspace }}/repo/patches/siyuan/default-config.patch
-          git apply ${{ github.workspace }}/repo/patches/siyuan/mock-vip-user.patch
+          patches_dir="${{ github.workspace }}/repo/patches/siyuan"
+          for p in "$patches_dir"/*.patch; do
+            tmp=$(mktemp)
+            sed -e 's#\ba/#forkSrcPrefix/#g' -e 's#\bb/#forkDstPrefix/#g' "$p" > "$tmp"
+            git apply "$tmp"
+            rm -f "$tmp"
+          done
           
           git status
 
