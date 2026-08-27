@@ -1,8 +1,7 @@
 diff --git forkSrcPrefix/kernel/model/updater.go forkDstPrefix/kernel/model/updater.go
-index 8a39a62..9ed2145 100644
 --- forkSrcPrefix/kernel/model/updater.go
 +++ forkDstPrefix/kernel/model/updater.go
-@@ -19,12 +19,14 @@ package model
+@@ -19,12 +19,14 @@
  import (
  	"context"
  	"crypto/sha256"
@@ -17,7 +16,7 @@ index 8a39a62..9ed2145 100644
  	"strings"
  	"sync"
  	"time"
-@@ -104,32 +106,39 @@ func checkDownloadInstallPkg(notifyPackageUnavailable bool) {
+@@ -104,32 +106,39 @@
  }
  
  func getUpdatePkg() (downloadPkgURLs []string, checksum string, err error) {
@@ -72,7 +71,7 @@ index 8a39a62..9ed2145 100644
  	return
  }
  
-@@ -238,16 +247,28 @@ func CheckUpdate(showMsg bool) {
+@@ -238,16 +247,28 @@
  		return
  	}
  
@@ -81,13 +80,14 @@ index 8a39a62..9ed2145 100644
  	if err != nil {
 +		logging.LogErrorf("check update failed: %s", err)
 +		util.PushUpdateMsg("update-notify", Conf.Language(10), 3000)
-+		return
-+	}
-+	if release.Draft || release.Prerelease {
  		return
  	}
- 
+-
 -	if isVersionUpToDate(release.Version) {
++	if release.Draft || release.Prerelease {
++		return
++	}
++
 +	ver, parseErr := parseTagVersion(release.TagName)
 +	if parseErr != nil {
 +		logging.LogErrorf("check update invalid tag: %s", parseErr)
@@ -105,10 +105,11 @@ index 8a39a62..9ed2145 100644
  	go func() {
  		defer logging.Recover()
  		checkDownloadInstallPkg(false)
-@@ -287,3 +308,117 @@ func skipNewVerInstallPkg() bool {
+@@ -286,4 +307,119 @@
+ 		return true
  	}
  	return false
- }
++}
 +
 +// githubReleaseRepo 是从自有 GitHub Release 拉取更新的仓库。
 +// 该仓库固定为 EightDoor/unlock-siyuan，不需要配置项。
@@ -223,13 +224,15 @@ index 8a39a62..9ed2145 100644
 +		}
 +	}
 +	return payload, nil
-+}
+ }
+\ No newline at end of file
+
 diff --git forkSrcPrefix/kernel/model/updater_test.go forkDstPrefix/kernel/model/updater_test.go
 new file mode 100644
-index 0000000..6e27e92
+index 0000000..0000000
 --- /dev/null
 +++ forkDstPrefix/kernel/model/updater_test.go
-@@ -0,0 +1,101 @@
+@@ -0,0 +1,102 @@
 +// SiYuan - Refactor your thinking
 +// Copyright (c) 2020-present, b3log.org
 +//
