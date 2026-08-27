@@ -165,9 +165,9 @@ diff --git forkSrcPrefix/kernel/model/updater.go forkDstPrefix/kernel/model/upda
 +	switch goos {
 +	case "windows":
 +		if goarch == "arm64" {
-+			return []string{"siyuan-" + version + "-win-arm64.exe"}
++			return []string{"siyuan-v" + version + "-win-arm64.exe"}
 +		}
-+		return []string{"siyuan-" + version + "-win.exe"}
++		return []string{"siyuan-v" + version + "-win.exe"}
 +	case "darwin":
 +		if goarch == "arm64" {
 +			return []string{"siyuan-v" + version + "-mac-arm64.dmg"}
@@ -232,7 +232,7 @@ new file mode 100644
 index 0000000..0000000
 --- /dev/null
 +++ forkDstPrefix/kernel/model/updater_test.go
-@@ -0,0 +1,102 @@
+@@ -0,0 +1,103 @@
 +// SiYuan - Refactor your thinking
 +// Copyright (c) 2020-present, b3log.org
 +//
@@ -302,7 +302,7 @@ index 0000000..0000000
 +func TestSelectReleaseAsset(t *testing.T) {
 +	assets := []releaseAsset{
 +		{Name: "siyuan-v3.8.1-mac-arm64.dmg", BrowserDownloadURL: "mac-arm64"},
-+		{Name: "siyuan-3.8.1-win.exe", BrowserDownloadURL: "win"},
++		{Name: "siyuan-v3.8.1-win.exe", BrowserDownloadURL: "win"},
 +		{Name: "siyuan-v3.8.1-linux.AppImage", BrowserDownloadURL: "appimage"},
 +		{Name: "siyuan-v3.8.1-linux.tar.gz", BrowserDownloadURL: "targz"},
 +		{Name: "siyuan-v3.8.1-linux-arm64.tar.gz", BrowserDownloadURL: "arm64-targz"},
@@ -335,3 +335,4 @@ index 0000000..0000000
 +		}
 +	}
 +}
++
