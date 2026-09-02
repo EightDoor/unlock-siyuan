@@ -2,7 +2,7 @@ diff --git forkSrcPrefix/kernel/conf/account.go forkDstPrefix/kernel/conf/accoun
 index c4590e2..133208f 100644
 --- forkSrcPrefix/kernel/conf/account.go
 +++ forkDstPrefix/kernel/conf/account.go
-@@ -23,7 +23,7 @@ type Account struct {
+@@ -23,7 +23,7 @@
  
  func NewAccount() *Account {
  	return &Account{
@@ -13,10 +13,10 @@ index c4590e2..133208f 100644
  	}
  }
 diff --git forkSrcPrefix/kernel/conf/appearance.go forkDstPrefix/kernel/conf/appearance.go
-index 908de47..3c78582 100644
+index 1bc316a..fd9f81a 100644
 --- forkSrcPrefix/kernel/conf/appearance.go
 +++ forkDstPrefix/kernel/conf/appearance.go
-@@ -50,8 +50,8 @@ func NewAppearance() *Appearance {
+@@ -50,8 +50,8 @@
  		Icon:                "litheness",
  		CodeBlockThemeLight: "github",
  		CodeBlockThemeDark:  "base16/dracula",
@@ -26,12 +26,12 @@ index 908de47..3c78582 100644
 +		CloseButtonBehavior: 1,
  		HideToolbar:         true,
  		HideStatusBar:       false,
- 		StatusBar:           &util.StatusBar{},
+ 		StatusBar:           util.NewStatusBar(util.IsMobileContainer()),
 diff --git forkSrcPrefix/kernel/conf/sync.go forkDstPrefix/kernel/conf/sync.go
 index b076c5e..662b300 100644
 --- forkSrcPrefix/kernel/conf/sync.go
 +++ forkDstPrefix/kernel/conf/sync.go
-@@ -38,8 +38,8 @@ func NewSync() *Sync {
+@@ -38,8 +38,8 @@
  		Enabled:             false,
  		Perception:          false,
  		Mode:                1,

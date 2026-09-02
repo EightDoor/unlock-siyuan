@@ -1,4 +1,5 @@
 diff --git forkSrcPrefix/kernel/model/updater.go forkDstPrefix/kernel/model/updater.go
+index 8a39a62..64835ed 100644
 --- forkSrcPrefix/kernel/model/updater.go
 +++ forkDstPrefix/kernel/model/updater.go
 @@ -19,12 +19,14 @@
@@ -145,7 +146,7 @@ diff --git forkSrcPrefix/kernel/model/updater.go forkDstPrefix/kernel/model/upda
 +		return "", fmt.Errorf("invalid semver tag %q", tag)
 +	}
 +	return v, nil
-+}
+ }
 +
 +// parseSha256Digest 解析 GitHub Asset 的 digest 字段，仅支持 sha256 格式。
 +func parseSha256Digest(digest string) (string, error) {
@@ -224,115 +225,5 @@ diff --git forkSrcPrefix/kernel/model/updater.go forkDstPrefix/kernel/model/upda
 +		}
 +	}
 +	return payload, nil
- }
++}
 \ No newline at end of file
-
-diff --git forkSrcPrefix/kernel/model/updater_test.go forkDstPrefix/kernel/model/updater_test.go
-new file mode 100644
-index 0000000..0000000
---- /dev/null
-+++ forkDstPrefix/kernel/model/updater_test.go
-@@ -0,0 +1,103 @@
-+// SiYuan - Refactor your thinking
-+// Copyright (c) 2020-present, b3log.org
-+//
-+// This program is free software: you can redistribute it and/or modify
-+// it under the terms of the GNU Affero General Public License as published by
-+// the Free Software Foundation, either version 3 of the License, or
-+// (at your option) any later version.
-+//
-+// This program is distributed in the hope that it will be useful,
-+// but WITHOUT ANY WARRANTY; without even the implied warranty of
-+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-+// GNU Affero General Public License for more details.
-+//
-+// You should have received a copy of the GNU Affero General Public License
-+// along with this program.  If not, see <https://www.gnu.org/licenses/>.
-+
-+package model
-+
-+import "testing"
-+
-+func TestParseTagVersion(t *testing.T) {
-+	cases := []struct {
-+		in      string
-+		want    string
-+		wantErr bool
-+	}{
-+		{"v3.8.1", "3.8.1", false},
-+		{"3.8.1", "3.8.1", false},
-+		{"v3.8.1-z1", "", true},
-+		{"v3.8.1+build.1", "", true},
-+		{"", "", true},
-+	}
-+	for _, c := range cases {
-+		got, err := parseTagVersion(c.in)
-+		if (err != nil) != c.wantErr {
-+			t.Fatalf("parseTagVersion(%q) err=%v wantErr=%v", c.in, err, c.wantErr)
-+		}
-+		if got != c.want {
-+			t.Fatalf("parseTagVersion(%q) = %q want %q", c.in, got, c.want)
-+		}
-+	}
-+}
-+
-+func TestParseSha256Digest(t *testing.T) {
-+	fullHex := "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-+	cases := []struct {
-+		in      string
-+		want    string
-+		wantErr bool
-+	}{
-+		{"sha256:" + fullHex, fullHex, false},
-+		{"sha256:abc", "", true},
-+		{"sha1:abc", "", true},
-+		{"", "", true},
-+	}
-+	for _, c := range cases {
-+		got, err := parseSha256Digest(c.in)
-+		if (err != nil) != c.wantErr {
-+			t.Fatalf("parseSha256Digest(%q) err=%v wantErr=%v", c.in, err, c.wantErr)
-+		}
-+		if got != c.want {
-+			t.Fatalf("parseSha256Digest(%q) = %q want %q", c.in, got, c.want)
-+		}
-+	}
-+}
-+
-+func TestSelectReleaseAsset(t *testing.T) {
-+	assets := []releaseAsset{
-+		{Name: "siyuan-v3.8.1-mac-arm64.dmg", BrowserDownloadURL: "mac-arm64"},
-+		{Name: "siyuan-v3.8.1-win.exe", BrowserDownloadURL: "win"},
-+		{Name: "siyuan-v3.8.1-linux.AppImage", BrowserDownloadURL: "appimage"},
-+		{Name: "siyuan-v3.8.1-linux.tar.gz", BrowserDownloadURL: "targz"},
-+		{Name: "siyuan-v3.8.1-linux-arm64.tar.gz", BrowserDownloadURL: "arm64-targz"},
-+	}
-+	cases := []struct {
-+		goos, goarch string
-+		wantURL      string
-+		wantErr      bool
-+	}{
-+		{"windows", "amd64", "win", false},
-+		{"darwin", "arm64", "mac-arm64", false},
-+		{"darwin", "amd64", "", true},
-+		{"linux", "amd64", "targz", false},
-+		{"linux", "arm64", "arm64-targz", false},
-+		{"freebsd", "amd64", "", true},
-+	}
-+	for _, c := range cases {
-+		a, err := selectReleaseAsset(assets, "3.8.1", c.goos, c.goarch)
-+		if c.wantErr {
-+			if err == nil {
-+				t.Fatalf("expected error for %s/%s", c.goos, c.goarch)
-+			}
-+			continue
-+		}
-+		if err != nil {
-+			t.Fatalf("selectReleaseAsset(%s/%s) err=%v", c.goos, c.goarch, err)
-+		}
-+		if a.BrowserDownloadURL != c.wantURL {
-+			t.Fatalf("selectReleaseAsset(%s/%s) = %s want %s", c.goos, c.goarch, a.BrowserDownloadURL, c.wantURL)
-+		}
-+	}
-+}
-+

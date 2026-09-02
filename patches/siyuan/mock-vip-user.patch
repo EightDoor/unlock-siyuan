@@ -1,62 +1,63 @@
 diff --git forkSrcPrefix/kernel/api/setting.go forkDstPrefix/kernel/api/setting.go
-index a67710b..791f0b0 100644
+index 4c80557..5600cc5 100644
 --- forkSrcPrefix/kernel/api/setting.go
 +++ forkDstPrefix/kernel/api/setting.go
-@@ -958,7 +958,7 @@ func getPublish(c *gin.Context) {
+@@ -1044,29 +1044,38 @@
+ 		return
  	}
- }
  
--func getCloudUser(c *gin.Context) {
-+func getCloudUserOrigin(c *gin.Context) {
- 	ret := gulu.Ret.NewResult()
- 	defer c.JSON(http.StatusOK, ret)
- 
-@@ -980,6 +980,48 @@ func getCloudUser(c *gin.Context) {
- 	ret.Data = model.Conf.GetUser()
- }
- 
-+func getCloudUser(c *gin.Context) {
-+	ret := gulu.Ret.NewResult()
-+	defer c.JSON(http.StatusOK, ret)
-+
-+	if !model.IsAdminRoleContext(c) {
-+		return
-+	}
-+
+-	arg, ok := util.JsonArg(c, ret)
+-	if !ok {
+-		return
 +	user := &conf.User{
-+		UserId:                        "0",
-+		UserName:                      "_",
-+		UserAvatarURL:                 "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
-+		UserHomeBImgURL:               "",
-+		UserTitles:                    []*conf.UserTitle{},
-+		UserIntro:                     "",
-+		UserNickname:                  "",
-+		UserCreateTime:                "29991231 00:00:00",
-+		UserSiYuanProExpireTime:       -1,
-+		UserToken:                     "token",
-+		UserTokenExpireTime:           "32503593600",
-+		UserSiYuanRepoSize:            0,
++		UserId:                          "0",
++		UserName:                        "_",
++		UserAvatarURL:                   "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7",
++		UserHomeBImgURL:                 "",
++		UserTitles:                      []*conf.UserTitle{},
++		UserIntro:                       "",
++		UserNickname:                    "",
++		UserCreateTime:                  "29991231 00:00:00",
++		UserSiYuanProExpireTime:         -1,
++		UserToken:                       "token",
++		UserTokenExpireTime:             "32503593600",
++		UserSiYuanRepoSize:              0,
 +		UserSiYuanPointExchangeRepoSize: 0,
-+		UserSiYuanAssetSize:           0,
-+		UserTrafficUpload:             0,
-+		UserTrafficDownload:           0,
-+		UserTrafficAPIGet:             0,
-+		UserTrafficAPIPut:             0,
-+		UserTrafficTime:               0,
-+		UserSiYuanSubscriptionPlan:    0,
-+		UserSiYuanSubscriptionStatus:  0,
-+		UserSiYuanSubscriptionType:    1,
-+		UserSiYuanOneTimePayStatus:    1,
-+	}
-+
++		UserSiYuanAssetSize:             0,
++		UserTrafficUpload:               0,
++		UserTrafficDownload:             0,
++		UserTrafficAPIGet:               0,
++		UserTrafficAPIPut:               0,
++		UserTrafficTime:                 0,
++		UserSiYuanSubscriptionPlan:      0,
++		UserSiYuanSubscriptionStatus:    0,
++		UserSiYuanSubscriptionType:      1,
++		UserSiYuanOneTimePayStatus:      1,
+ 	}
+ 
+-	t := arg["token"]
+-	var token string
+-	if nil != t {
+-		token = t.(string)
+-	}
+-	user, err := model.RefreshUser(token)
 +	model.Conf.User = user
 +	data, _ := gulu.JSON.MarshalJSON(user)
 +	model.Conf.UserData = util.AESEncrypt(string(data))
 +	model.Conf.Save()
 +
-+	ret.Data = user
-+}
-+
+ 	ret.Data = user
+-	if nil == err {
+-		return
+-	}
+-	if model.IsInvalidUserRefresh(err) {
+-		ret.Code = 255
+-		ret.Msg = model.Conf.Language(19)
+-		ret.Data = nil
+-		return
+-	}
+-	ret.Code = 1
+-	ret.Msg = model.Conf.Language(18)
+ }
+ 
  func logoutCloudUser(c *gin.Context) {
- 	ret := gulu.Ret.NewResult()
- 	defer c.JSON(http.StatusOK, ret)

@@ -1,8 +1,8 @@
-diff --git a/kernel/conf/system.go b/kernel/conf/system.go
-index 8bf0031..8fd9ba5 100644
---- a/kernel/conf/system.go
-+++ b/kernel/conf/system.go
-@@ -77,7 +77,7 @@ func NewSystem() *System {
+diff --git forkSrcPrefix/kernel/conf/system.go forkDstPrefix/kernel/conf/system.go
+index ea4cc84..d66a421 100644
+--- forkSrcPrefix/kernel/conf/system.go
++++ forkDstPrefix/kernel/conf/system.go
+@@ -77,7 +77,7 @@
  		Name:               util.GetDeviceName(),
  		KernelVersion:      util.Ver,
  		NetworkProxy:       &NetworkProxy{},
