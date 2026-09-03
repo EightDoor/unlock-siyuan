@@ -1,8 +1,8 @@
-diff --git forkSrcPrefix/kernel/model/updater.go forkDstPrefix/kernel/model/updater.go
-index 8a39a62..64835ed 100644
---- forkSrcPrefix/kernel/model/updater.go
-+++ forkDstPrefix/kernel/model/updater.go
-@@ -19,12 +19,14 @@
+diff --git a/kernel/model/updater.go b/kernel/model/updater.go
+index 8a39a62..747947f 100644
+--- a/kernel/model/updater.go
++++ b/kernel/model/updater.go
+@@ -19,12 +19,14 @@ package model
  import (
  	"context"
  	"crypto/sha256"
@@ -17,7 +17,16 @@ index 8a39a62..64835ed 100644
  	"strings"
  	"sync"
  	"time"
-@@ -104,32 +106,39 @@
+@@ -90,7 +92,7 @@ func checkDownloadInstallPkg(notifyPackageUnavailable bool) {
+ 	util.PushUpdateMsg("update-pkg-downloading", Conf.Language(103), 1000*7)
+ 	success := false
+ 	for _, downloadPkgURL := range downloadPkgURLs {
+-		err = downloadInstallPkg(downloadPkgURL, checksum)
++		err = DownloadInstallPkg(downloadPkgURL, checksum)
+ 		if err == nil {
+ 			success = true
+ 			break
+@@ -104,36 +106,43 @@ func checkDownloadInstallPkg(notifyPackageUnavailable bool) {
  }
  
  func getUpdatePkg() (downloadPkgURLs []string, checksum string, err error) {
@@ -72,7 +81,12 @@ index 8a39a62..64835ed 100644
  	return
  }
  
-@@ -238,16 +247,28 @@
+-func downloadInstallPkg(pkgURL, checksum string) (err error) {
++func DownloadInstallPkg(pkgURL, checksum string) (err error) {
+ 	if "" == pkgURL || "" == checksum {
+ 		err = errors.New("update package URL or checksum is empty")
+ 		return
+@@ -238,16 +247,38 @@ func CheckUpdate(showMsg bool) {
  		return
  	}
  
@@ -81,14 +95,13 @@ index 8a39a62..64835ed 100644
  	if err != nil {
 +		logging.LogErrorf("check update failed: %s", err)
 +		util.PushUpdateMsg("update-notify", Conf.Language(10), 3000)
- 		return
- 	}
--
--	if isVersionUpToDate(release.Version) {
-+	if release.Draft || release.Prerelease {
 +		return
 +	}
-+
++	if release.Draft || release.Prerelease {
+ 		return
+ 	}
+ 
+-	if isVersionUpToDate(release.Version) {
 +	ver, parseErr := parseTagVersion(release.TagName)
 +	if parseErr != nil {
 +		logging.LogErrorf("check update invalid tag: %s", parseErr)
@@ -103,23 +116,30 @@ index 8a39a62..64835ed 100644
 +
 +	link := "<a href=\"" + release.HTMLURL + "\">" + release.TagName + "</a>"
 +	util.PushUpdateMsg("update-notify", fmt.Sprintf(Conf.Language(9), link), 15000)
++
++	if showMsg {
++		// [FORK-MOD] Notify frontend to show update confirm dialog.
++		// Frontend calls /api/system/downloadUpdate after user confirms.
++		util.BroadcastByType("main", "update-confirm", 0, "", map[string]interface{}{
++			"version": release.TagName,
++			"url":     release.HTMLURL,
++		})
++	}
++
  	go func() {
  		defer logging.Recover()
  		checkDownloadInstallPkg(false)
-@@ -286,4 +307,119 @@
- 		return true
+@@ -287,3 +318,171 @@ func skipNewVerInstallPkg() bool {
  	}
  	return false
-+}
+ }
 +
-+// githubReleaseRepo 是从自有 GitHub Release 拉取更新的仓库。
-+// 该仓库固定为 EightDoor/unlock-siyuan，不需要配置项。
++// githubReleaseRepo is the GitHub Release repo for fork updates.
 +const githubReleaseRepo = "EightDoor/unlock-siyuan"
 +
-+// githubReleaseAPI 是 GitHub 公开的 latest release 接口。
++// githubReleaseAPI is the GitHub latest release API endpoint.
 +const githubReleaseAPI = "https://api.github.com/repos/" + githubReleaseRepo + "/releases/latest"
 +
-+// releasePayload 表示 GitHub releases/latest 响应的最小子集。
 +type releasePayload struct {
 +	TagName    string         `json:"tag_name"`
 +	HTMLURL    string         `json:"html_url"`
@@ -128,14 +148,12 @@ index 8a39a62..64835ed 100644
 +	Assets     []releaseAsset `json:"assets"`
 +}
 +
-+// releaseAsset 表示单个 Release 资产。
 +type releaseAsset struct {
 +	Name               string `json:"name"`
 +	BrowserDownloadURL string `json:"browser_download_url"`
 +	Digest             string `json:"digest"`
 +}
 +
-+// parseTagVersion 从 tag 中去掉 v 前缀并校验为合法 semver（不含 pre-release/build 元数据）。
 +func parseTagVersion(tag string) (string, error) {
 +	if "" == tag {
 +		return "", errors.New("empty tag")
@@ -146,9 +164,8 @@ index 8a39a62..64835ed 100644
 +		return "", fmt.Errorf("invalid semver tag %q", tag)
 +	}
 +	return v, nil
- }
++}
 +
-+// parseSha256Digest 解析 GitHub Asset 的 digest 字段，仅支持 sha256 格式。
 +func parseSha256Digest(digest string) (string, error) {
 +	const prefix = "sha256:"
 +	if !strings.HasPrefix(digest, prefix) {
@@ -161,7 +178,6 @@ index 8a39a62..64835ed 100644
 +	return strings.ToLower(hex), nil
 +}
 +
-+// platformAssetNames 列出当前平台预期匹配的资产名，按优先级排序。
 +func platformAssetNames(version, goos, goarch string) []string {
 +	switch goos {
 +	case "windows":
@@ -186,7 +202,6 @@ index 8a39a62..64835ed 100644
 +	return nil
 +}
 +
-+// selectReleaseAsset 在给定的 Release 资产中按当前平台选择匹配项。
 +func selectReleaseAsset(assets []releaseAsset, version, goos, goarch string) (releaseAsset, error) {
 +	names := platformAssetNames(version, goos, goarch)
 +	if len(names) == 0 {
@@ -204,7 +219,6 @@ index 8a39a62..64835ed 100644
 +	return releaseAsset{}, fmt.Errorf("no asset matches platform %s/%s in version %s", goos, goarch, version)
 +}
 +
-+// fetchLatestRelease 拉取 GitHub releases/latest 响应。
 +func fetchLatestRelease(ctx context.Context) (releasePayload, error) {
 +	var payload releasePayload
 +	client := req.C().SetTLSHandshakeTimeout(7 * time.Second).SetTimeout(15 * time.Second)
@@ -226,4 +240,64 @@ index 8a39a62..64835ed 100644
 +	}
 +	return payload, nil
 +}
-\ No newline at end of file
++
++// DownloadUpdatePkg is called by frontend after user confirms update dialog.
++// It bypasses DownloadInstallPkg setting and pushes update-pkg-ready on success.
++func DownloadUpdatePkg() (downloadPkgURLs []string, checksum string, err error) {
++	defer logging.Recover()
++
++	if skipUpdatePkgPlatform() {
++		err = errors.New("current platform does not support auto install")
++		return
++	}
++
++	release, fetchErr := fetchLatestRelease(context.TODO())
++	if fetchErr != nil {
++		err = fetchErr
++		logging.LogErrorf("download update: fetch latest release failed: %s", err)
++		return
++	}
++	if release.Draft || release.Prerelease {
++		err = errors.New("no stable release")
++		return
++	}
++
++	ver, parseErr := parseTagVersion(release.TagName)
++	if parseErr != nil {
++		err = parseErr
++		return
++	}
++	if isVersionUpToDate(ver) {
++		err = errors.New("version is up to date")
++		return
++	}
++
++	asset, assetErr := selectReleaseAsset(release.Assets, ver, runtime.GOOS, runtime.GOARCH)
++	if assetErr != nil {
++		err = assetErr
++		return
++	}
++	checksum, err = parseSha256Digest(asset.Digest)
++	if err != nil {
++		return
++	}
++	downloadPkgURLs = []string{asset.BrowserDownloadURL}
++	return
++}
++
++// skipUpdatePkgPlatform checks platform only, ignores DownloadInstallPkg setting.
++func skipUpdatePkgPlatform() bool {
++	if !gulu.OS.IsWindows() && !gulu.OS.IsDarwin() {
++		return true
++	}
++	if util.ISMicrosoftStore || util.ContainerStd != util.Container {
++		return true
++	}
++	if gulu.OS.IsWindows() {
++		plat := strings.ToLower(Conf.System.OSPlatform)
++		if strings.Contains(plat, " 7 ") || strings.Contains(plat, " 8 ") || strings.Contains(plat, "2012") {
++			return true
++		}
++	}
++	return false
++}

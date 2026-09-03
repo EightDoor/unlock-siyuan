@@ -1,0 +1,56 @@
+diff --git a/kernel/api/router.go b/kernel/api/router.go
+index ad9c686..da1f5fe 100644
+--- a/kernel/api/router.go
++++ b/kernel/api/router.go
+@@ -88,6 +88,7 @@ func ServeAPI(ginServer *gin.Engine) {
+ 	ginServer.Handle("POST", "/api/system/ensureOnboarding", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, ensureOnboarding)
+ 	ginServer.Handle("POST", "/api/system/dismissOnboarding", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, dismissOnboarding)
+ 	ginServer.Handle("POST", "/api/system/checkUpdate", model.CheckAuth, model.CheckAdminRole, checkUpdate)
++	ginServer.Handle("POST", "/api/system/downloadUpdate", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, downloadUpdate)
+ 	ginServer.Handle("POST", "/api/system/exportLog", model.CheckAuth, model.CheckAdminRole, exportLog)
+ 	ginServer.Handle("POST", "/api/system/getChangelog", model.CheckAuth, getChangelog)
+ 	ginServer.Handle("POST", "/api/system/getNetwork", model.CheckAuth, model.CheckAdminRole, getNetwork)
+diff --git a/kernel/api/system.go b/kernel/api/system.go
+index ed9c9cd..796c6c1 100644
+--- a/kernel/api/system.go
++++ b/kernel/api/system.go
+@@ -425,6 +425,39 @@ func checkUpdate(c *gin.Context) {
+ 	model.CheckUpdate(showMsg)
+ }
+ 
++// downloadUpdate is called by frontend after user confirms the update dialog.
++// It bypasses DownloadInstallPkg setting and pushes update-pkg-ready on success.
++func downloadUpdate(c *gin.Context) {
++	ret := gulu.Ret.NewResult()
++	defer c.JSON(http.StatusOK, ret)
++
++	downloadPkgURLs, checksum, err := model.DownloadUpdatePkg()
++	if err != nil {
++		ret.Code = -1
++		ret.Msg = err.Error()
++		logging.LogErrorf("download update failed: %s", err)
++		return
++	}
++
++	util.PushUpdateMsg("update-pkg-downloading", model.Conf.Language(103), 1000*7)
++	success := false
++	for _, url := range downloadPkgURLs {
++		if downloadErr := model.DownloadInstallPkg(url, checksum); downloadErr == nil {
++			success = true
++			break
++		} else {
++			logging.LogErrorf("download update from [%s] failed: %s", url, downloadErr)
++		}
++	}
++	if success {
++		util.PushUpdateMsg("update-pkg-ready", model.Conf.Language(62), 15*1000)
++	} else {
++		ret.Code = -1
++		ret.Msg = model.Conf.Language(104)
++		util.PushUpdateMsg("update-pkg-downloading", model.Conf.Language(104), 7000)
++	}
++}
++
+ func exportLog(c *gin.Context) {
+ 	ret := gulu.Ret.NewResult()
+ 	defer c.JSON(http.StatusOK, ret)

@@ -1,0 +1,77 @@
+diff --git a/app/src/util/processMessage.ts b/app/src/util/processMessage.ts
+--- a/app/src/util/processMessage.ts
++++ b/app/src/util/processMessage.ts
+@@ -1,8 +1,12 @@
+ /// #if !MOBILE
+ import {exportLayout} from "../layout/util";
+ /// #endif
+ import {hideMessage, showMessage} from "../dialog/message";
+ import {setStorageVal} from "../protyle/util/compatibility";
+ import {Constants} from "../constants";
+ import {fetchPost} from "./fetch";
+ import {isBrowser} from "./functions";
++import {confirmDialog} from "../dialog/confirmDialog";
++/// #if !BROWSER
++import {ipcRenderer} from "electron";
++/// #endif
+ 
+ export const processMessage = (response: IWebSocketData) => {
+     if ("msg" === response.cmd) {
+@@ -20,6 +24,57 @@
+         document.querySelector("#message #ignoreAddMicrosoftDefenderExclusion")?.addEventListener("click", () => {
+             hideMessage(id);
+             fetchPost("/api/system/ignoreAddMicrosoftDefenderExclusion");
+         }, {once: true});
++        // [FORK-MOD] Handle update-confirm event from kernel, show update dialog.
++        if (response.data?.id === "update-confirm") {
++            const version = (response.data?.version || "").toString();
++            const url = (response.data?.url || "").toString();
++            hideMessage(id);
++            confirmDialog(
++                window.siyuan.languages.updateVersion,
++                window.siyuan.languages.updateConfirmTip.replace("${version}", version) +
++                    (url ? `<div class="fn__space"></div><a href="${url}" target="_blank">${url}</a>` : ""),
++                () => {
++                    const downloadingId = showMessage(window.siyuan.languages.downloadingUpdate, 0, "info");
++                    fetchPost("/api/system/downloadUpdate", {}, (resp) => {
++                        if (resp.code === 0) {
++                            hideMessage(downloadingId);
++                            confirmDialog(
++                                window.siyuan.languages.updateVersion,
++                                window.siyuan.languages.updateReadyTip.replace("${version}", version),
++                                () => {
++                                    fetchPost("/api/system/exit", {
++                                        force: true,
++                                        setCurrentWorkspace: true,
++                                        execInstallPkg: 2
++                                    }, () => {
++                                        /// #if !BROWSER
++                                        setTimeout(() => {
++                                            ipcRenderer.send(Constants.SIYUAN_CMD, "hide");
++                                        }, 2000);
++                                        setTimeout(() => {
++                                            ipcRenderer.send(Constants.SIYUAN_QUIT, location.port);
++                                        }, 4000);
++                                        /// #endif
++                                    });
++                                },
++                                () => {
++                                    fetchPost("/api/system/exit", {
++                                        force: true,
++                                        setCurrentWorkspace: true,
++                                        execInstallPkg: 1
++                                    }, () => {
++                                        /// #if !BROWSER
++                                        ipcRenderer.send(Constants.SIYUAN_QUIT, location.port);
++                                        /// #endif
++                                    });
++                                });
++                        } else {
++                            showMessage(resp.msg || window.siyuan.languages.downloadUpdateFailed, 7000, "error");
++                        }
++                    });
++                });
++        }
+         return false;
+     }
+     if ("cmsg" === response.cmd) {
