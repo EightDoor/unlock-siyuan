@@ -62,7 +62,8 @@ jobs:
             
             ### ✨ Modifications
             - ✅ **VIP features unlocked** - Cloud sync, S3/WebDAV, and all premium features
-            - ✅ **Auto-download update disabled** - No automatic update downloads
+            - ✅ **GitHub Release updates** - Check and download updates from GitHub Releases
+            - ✅ **Update confirmation dialog** - Prompts before downloading and installing updates
             
             ### 🐳 Docker Images
             
