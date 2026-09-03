@@ -17,7 +17,7 @@ diff --git a/app/src/util/processMessage.ts b/app/src/util/processMessage.ts
  
  export const processMessage = (response: IWebSocketData) => {
      if ("msg" === response.cmd) {
-@@ -20,6 +24,57 @@
+@@ -19,6 +23,57 @@
          document.querySelector("#message #ignoreAddMicrosoftDefenderExclusion")?.addEventListener("click", () => {
              hideMessage(id);
              fetchPost("/api/system/ignoreAddMicrosoftDefenderExclusion");
