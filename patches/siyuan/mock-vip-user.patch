@@ -1,14 +1,28 @@
-diff --git forkSrcPrefix/kernel/api/setting.go forkDstPrefix/kernel/api/setting.go
-index 4c80557..5600cc5 100644
---- forkSrcPrefix/kernel/api/setting.go
-+++ forkDstPrefix/kernel/api/setting.go
-@@ -1044,29 +1044,38 @@
- 		return
+--- forkSrcPrefix/kernel/api/setting.go	2026-09-07 22:13:33
++++ forkDstPrefix/kernel/api/setting.go	2026-09-07 22:13:33
+@@ -1054,7 +1054,7 @@
+ 	if nil != t {
+ 		token = t.(string)
  	}
- 
--	arg, ok := util.JsonArg(c, ret)
--	if !ok {
--		return
+-	user, err := model.RefreshUser(token)
++	user, err := mockCloudUser(token)
+ 	ret.Data = user
+ 	if nil == err {
+ 		return
+--- forkSrcPrefix/kernel/api/mock_vip_user.go	2026-09-07 22:13:33
++++ forkDstPrefix/kernel/api/mock_vip_user.go	2026-09-07 22:13:33
+@@ -0,0 +1,44 @@
++// [FORK-MOD] Mock VIP user — fork 模式下把所有用户信息写为已解锁状态
++package api
++
++import (
++	"github.com/88250/gulu"
++	"github.com/siyuan-note/siyuan/kernel/conf"
++	"github.com/siyuan-note/siyuan/kernel/model"
++	"github.com/siyuan-note/siyuan/kernel/util"
++)
++
++func mockCloudUser(token string) (*conf.User, error) {
 +	user := &conf.User{
 +		UserId:                          "0",
 +		UserName:                        "_",
@@ -33,31 +47,12 @@ index 4c80557..5600cc5 100644
 +		UserSiYuanSubscriptionStatus:    0,
 +		UserSiYuanSubscriptionType:      1,
 +		UserSiYuanOneTimePayStatus:      1,
- 	}
- 
--	t := arg["token"]
--	var token string
--	if nil != t {
--		token = t.(string)
--	}
--	user, err := model.RefreshUser(token)
++	}
++
 +	model.Conf.User = user
 +	data, _ := gulu.JSON.MarshalJSON(user)
 +	model.Conf.UserData = util.AESEncrypt(string(data))
 +	model.Conf.Save()
 +
- 	ret.Data = user
--	if nil == err {
--		return
--	}
--	if model.IsInvalidUserRefresh(err) {
--		ret.Code = 255
--		ret.Msg = model.Conf.Language(19)
--		ret.Data = nil
--		return
--	}
--	ret.Code = 1
--	ret.Msg = model.Conf.Language(18)
- }
- 
- func logoutCloudUser(c *gin.Context) {
++	return user, nil
++}

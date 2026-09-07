@@ -1,7 +1,5 @@
-diff --git forkSrcPrefix/kernel/conf/account.go forkDstPrefix/kernel/conf/account.go
-index c4590e2..133208f 100644
---- forkSrcPrefix/kernel/conf/account.go
-+++ forkDstPrefix/kernel/conf/account.go
+--- forkSrcPrefix/kernel/conf/account.go	2026-09-07 22:14:30
++++ forkDstPrefix/kernel/conf/account.go	2026-09-07 22:14:34
 @@ -23,7 +23,7 @@
  
  func NewAccount() *Account {
@@ -12,11 +10,9 @@ index c4590e2..133208f 100644
 +		DisplayVIP:   false,
  	}
  }
-diff --git forkSrcPrefix/kernel/conf/appearance.go forkDstPrefix/kernel/conf/appearance.go
-index 1bc316a..fd9f81a 100644
---- forkSrcPrefix/kernel/conf/appearance.go
-+++ forkDstPrefix/kernel/conf/appearance.go
-@@ -50,8 +50,8 @@
+--- forkSrcPrefix/kernel/conf/appearance.go	2026-09-07 22:14:30
++++ forkDstPrefix/kernel/conf/appearance.go	2026-09-07 22:14:34
+@@ -52,8 +52,8 @@
  		Icon:                "litheness",
  		CodeBlockThemeLight: "github",
  		CodeBlockThemeDark:  "base16/dracula",
@@ -27,11 +23,9 @@ index 1bc316a..fd9f81a 100644
  		HideToolbar:         true,
  		HideStatusBar:       false,
  		StatusBar:           util.NewStatusBar(util.IsMobileContainer()),
-diff --git forkSrcPrefix/kernel/conf/sync.go forkDstPrefix/kernel/conf/sync.go
-index b076c5e..662b300 100644
---- forkSrcPrefix/kernel/conf/sync.go
-+++ forkDstPrefix/kernel/conf/sync.go
-@@ -38,8 +38,8 @@
+--- forkSrcPrefix/kernel/conf/sync.go	2026-09-07 22:14:30
++++ forkDstPrefix/kernel/conf/sync.go	2026-09-07 22:14:34
+@@ -39,8 +39,8 @@
  		Enabled:             false,
  		Perception:          false,
  		Mode:                1,
