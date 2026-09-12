@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" role="img" aria-labelledby="title desc">
+  <title id="title">VIP 默认头像</title>
+  <desc id="desc">深色金边徽章，中央为金色皇冠与 VIP 字样</desc>
+  <defs>
+    <linearGradient id="shell" x1="12" y1="8" x2="84" y2="88" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F6DEA0"/>
+      <stop offset="0.24" stop-color="#D6A640"/>
+      <stop offset="0.68" stop-color="#8E641F"/>
+      <stop offset="1" stop-color="#D6A640"/>
+    </linearGradient>
+    <linearGradient id="crown" x1="33" y1="24" x2="64" y2="48" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#F6DEA0"/>
+      <stop offset="0.42" stop-color="#D6A640"/>
+      <stop offset="1" stop-color="#8E641F"/>
+    </linearGradient>
+    <linearGradient id="innerEdge" x1="21" y1="18" x2="76" y2="78" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#8E641F"/>
+      <stop offset="0.5" stop-color="#D6A640"/>
+      <stop offset="1" stop-color="#8E641F"/>
+    </linearGradient>
+  </defs>
+
+  <rect x="2.5" y="2.5" width="91" height="91" rx="21" fill="#191610" stroke="url(#shell)" stroke-width="2.5"/>
+  <rect x="8" y="8" width="80" height="80" rx="17" fill="none" stroke="url(#innerEdge)" stroke-width="0.75" opacity="0.9"/>
+
+  <g fill="url(#crown)" stroke="#F6DEA0" stroke-width="0.7" stroke-linejoin="round">
+    <path d="M31 43.5 28 27.5l10.5 8 9.5-13 9.5 13 10.5-8-3 16Z"/>
+    <path d="M31 44h33l-2.2 5H33.2Z" stroke="none"/>
+  </g>
+  <circle cx="28.6" cy="27.5" r="1.45" fill="#F6DEA0"/>
+  <circle cx="48" cy="22.5" r="1.45" fill="#F6DEA0"/>
+  <circle cx="67.4" cy="27.5" r="1.45" fill="#F6DEA0"/>
+
+  <text x="48" y="70" fill="#F6DEA0" font-family="sans-serif" font-size="20" font-weight="700" letter-spacing="2.4" text-anchor="middle">VIP</text>
+  <path d="M27 76.5h42" fill="none" stroke="#8E641F" stroke-width="1" stroke-linecap="round"/>
+</svg>

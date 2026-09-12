@@ -20,6 +20,8 @@ import (
 	"bufio"
 	"context"
 	"crypto/sha256"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -79,6 +81,16 @@ func getNewVerInstallPkgPath() string {
 
 var checkDownloadInstallPkgLock = sync.Mutex{}
 
+// TryLockCheckDownloadInstallPkg 尝试获取下载安装包互斥锁，用于手动更新入口避免与自动检查并发下载同一安装包。
+func TryLockCheckDownloadInstallPkg() bool {
+	return checkDownloadInstallPkgLock.TryLock()
+}
+
+// UnlockCheckDownloadInstallPkg 释放下载安装包互斥锁。
+func UnlockCheckDownloadInstallPkg() {
+	checkDownloadInstallPkgLock.Unlock()
+}
+
 func checkDownloadInstallPkg() {
 	defer logging.Recover()
 
@@ -106,7 +118,7 @@ func checkDownloadInstallPkg() {
 	util.PushUpdateMsg("update-pkg-downloading", Conf.Language(103), 1000*7)
 	success := false
 	for _, downloadPkgURL := range downloadPkgURLs {
-		err = downloadInstallPkg(downloadPkgURL, checksum)
+		err = DownloadInstallPkg(downloadPkgURL, checksum)
 		if err == nil {
 			success = true
 			break
@@ -121,60 +133,44 @@ func checkDownloadInstallPkg() {
 
 func getUpdatePkg() (downloadPkgURLs []string, checksum string, err error) {
 	defer logging.Recover()
-	result, err := util.GetRhyResult(context.TODO(), false)
-	if err != nil {
+
+	// [FORK-MOD] 使用 GitHub Release API 检查更新，替代原 b3log/liuyun 源
+	release, fetchErr := fetchLatestRelease(context.TODO())
+	if fetchErr != nil {
+		err = fetchErr
+		logging.LogErrorf("fetch latest release failed: %s", err)
+		return
+	}
+	if release.Draft || release.Prerelease {
+		err = errors.New("no stable release")
 		return
 	}
 
-	ver := result["ver"].(string)
+	ver, parseErr := parseTagVersion(release.TagName)
+	if parseErr != nil {
+		err = parseErr
+		return
+	}
 	if isVersionUpToDate(ver) {
 		err = fmt.Errorf("version is up to date")
 		return
 	}
 
-	var suffix string
-	if gulu.OS.IsWindows() {
-		if "arm64" == runtime.GOARCH {
-			suffix = "win-arm64.exe"
-		} else {
-			suffix = "win.exe"
-		}
-	} else if gulu.OS.IsDarwin() {
-		if "arm64" == runtime.GOARCH {
-			suffix = "mac-arm64.dmg"
-		} else {
-			suffix = "mac.dmg"
-		}
-	}
-	pkg := "siyuan-" + ver + "-" + suffix
-
-	b3logURL := "https://release.b3log.org/siyuan/" + pkg
-	liuyunURL := "https://release.liuyun.io/siyuan/" + pkg
-	githubURL := "https://github.com/siyuan-note/siyuan/releases/download/v" + ver + "/" + pkg
-	ghproxyURL := "https://ghfast.top/" + githubURL
-	if util.IsChinaCloud() {
-		downloadPkgURLs = append(downloadPkgURLs, b3logURL)
-		downloadPkgURLs = append(downloadPkgURLs, liuyunURL)
-		downloadPkgURLs = append(downloadPkgURLs, ghproxyURL)
-		downloadPkgURLs = append(downloadPkgURLs, githubURL)
-	} else {
-		downloadPkgURLs = append(downloadPkgURLs, b3logURL)
-		downloadPkgURLs = append(downloadPkgURLs, liuyunURL)
-		downloadPkgURLs = append(downloadPkgURLs, githubURL)
-		downloadPkgURLs = append(downloadPkgURLs, ghproxyURL)
-	}
-
-	checksums := result["checksums"].(map[string]interface{})
-	checksum = checksums[pkg].(string)
-
-	if "" == checksum {
-		err = fmt.Errorf("checksum is empty")
+	asset, assetErr := selectReleaseAsset(release.Assets, ver, runtime.GOOS, runtime.GOARCH)
+	if assetErr != nil {
+		err = assetErr
 		return
 	}
+	checksum, err = parseSha256Digest(asset.Digest)
+	if err != nil {
+		return
+	}
+	downloadPkgURLs = []string{asset.BrowserDownloadURL}
 	return
 }
 
-func downloadInstallPkg(pkgURL, checksum string) (err error) {
+// DownloadInstallPkg 下载安装包并校验 checksum。
+func DownloadInstallPkg(pkgURL, checksum string) (err error) {
 	if "" == pkgURL || "" == checksum {
 		return
 	}
@@ -279,22 +275,38 @@ func CheckUpdate(showMsg bool) {
 		return
 	}
 
-	result, err := util.GetRhyResult(context.TODO(), showMsg)
+	// [FORK-MOD] 使用 GitHub Release API 检查更新
+	release, err := fetchLatestRelease(context.TODO())
 	if err != nil {
+		logging.LogErrorf("check update failed: %s", err)
+		util.PushUpdateMsg("update-notify", Conf.Language(10), 3000)
+		return
+	}
+	if release.Draft || release.Prerelease {
 		return
 	}
 
-	ver := result["ver"].(string)
-	releaseLang := result["release"].(string)
-	if releaseLangArg := result["release_"+Conf.Lang]; nil != releaseLangArg {
-		releaseLang = releaseLangArg.(string)
+	ver, parseErr := parseTagVersion(release.TagName)
+	if parseErr != nil {
+		logging.LogErrorf("check update invalid tag: %s", parseErr)
+		return
 	}
-
 	if isVersionUpToDate(ver) {
 		util.PushUpdateMsg("update-notify", Conf.Language(10), 3000)
-	} else {
-		util.PushUpdateMsg("update-notify", fmt.Sprintf(Conf.Language(9), "<a href=\""+releaseLang+"\">"+releaseLang+"</a>"), 15000)
+		return
 	}
+
+	link := "<a href=\"" + release.HTMLURL + "\">" + release.TagName + "</a>"
+	util.PushUpdateMsg("update-notify", fmt.Sprintf(Conf.Language(9), link), 15000)
+
+	if showMsg {
+		// [FORK-MOD] 通知前端弹出更新确认对话框
+		util.BroadcastByType("main", "update-confirm", 0, "", map[string]interface{}{
+			"version": release.TagName,
+			"url":     release.HTMLURL,
+		})
+	}
+
 	go func() {
 		defer logging.Recover()
 		checkDownloadInstallPkg()
@@ -326,6 +338,175 @@ func skipNewVerInstallPkg() bool {
 
 	if skipInstallPkgPlatformCached == 1 || !Conf.System.DownloadInstallPkg {
 		return true
+	}
+	return false
+}
+
+// [FORK-MOD] 以下为 GitHub Release 更新相关函数，替代原 b3log/liuyun 更新源
+
+// githubReleaseRepo 是 fork 更新使用的 GitHub Release 仓库
+const githubReleaseRepo = "EightDoor/unlock-siyuan"
+
+// githubReleaseAPI 是 GitHub latest release API 端点
+const githubReleaseAPI = "https://api.github.com/repos/" + githubReleaseRepo + "/releases/latest"
+
+type releasePayload struct {
+	TagName    string         `json:"tag_name"`
+	HTMLURL    string         `json:"html_url"`
+	Draft      bool           `json:"draft"`
+	Prerelease bool           `json:"prerelease"`
+	Assets     []releaseAsset `json:"assets"`
+}
+
+type releaseAsset struct {
+	Name               string `json:"name"`
+	BrowserDownloadURL string `json:"browser_download_url"`
+	Digest             string `json:"digest"`
+}
+
+func parseTagVersion(tag string) (string, error) {
+	if "" == tag {
+		return "", errors.New("empty tag")
+	}
+	v := strings.TrimPrefix(tag, "v")
+	full := "v" + v
+	if !semver.IsValid(full) || "" != semver.Prerelease(full) || "" != semver.Build(full) {
+		return "", fmt.Errorf("invalid semver tag %q", tag)
+	}
+	return v, nil
+}
+
+func parseSha256Digest(digest string) (string, error) {
+	const prefix = "sha256:"
+	if !strings.HasPrefix(digest, prefix) {
+		return "", fmt.Errorf("unsupported digest %q", digest)
+	}
+	hex := strings.TrimPrefix(digest, prefix)
+	if len(hex) != 64 {
+		return "", fmt.Errorf("invalid sha256 length for digest %q", digest)
+	}
+	return strings.ToLower(hex), nil
+}
+
+func platformAssetNames(version, goos, goarch string) []string {
+	switch goos {
+	case "windows":
+		if goarch == "arm64" {
+			return []string{"siyuan-v" + version + "-win-arm64.exe"}
+		}
+		return []string{"siyuan-v" + version + "-win.exe"}
+	case "darwin":
+		if goarch == "arm64" {
+			return []string{"siyuan-v" + version + "-mac-arm64.dmg"}
+		}
+		return []string{"siyuan-v" + version + "-mac.dmg"}
+	case "linux":
+		if goarch == "arm64" {
+			return []string{"siyuan-v" + version + "-linux-arm64.tar.gz"}
+		}
+		return []string{
+			"siyuan-v" + version + "-linux.tar.gz",
+			"siyuan-v" + version + "-linux.AppImage",
+		}
+	}
+	return nil
+}
+
+func selectReleaseAsset(assets []releaseAsset, version, goos, goarch string) (releaseAsset, error) {
+	names := platformAssetNames(version, goos, goarch)
+	if len(names) == 0 {
+		return releaseAsset{}, fmt.Errorf("unsupported platform %s/%s", goos, goarch)
+	}
+	index := make(map[string]releaseAsset, len(assets))
+	for _, a := range assets {
+		index[a.Name] = a
+	}
+	for _, n := range names {
+		if a, ok := index[n]; ok {
+			return a, nil
+		}
+	}
+	return releaseAsset{}, fmt.Errorf("no asset matches platform %s/%s in version %s", goos, goarch, version)
+}
+
+func fetchLatestRelease(ctx context.Context) (releasePayload, error) {
+	var payload releasePayload
+	client := req.C().SetTLSHandshakeTimeout(7 * time.Second).SetTimeout(15 * time.Second)
+	resp, err := client.R().
+		SetContext(ctx).
+		SetHeader("Accept", "application/vnd.github+json").
+		SetSuccessResult(&payload).
+		Get(githubReleaseAPI)
+	if err != nil {
+		return payload, err
+	}
+	if !resp.IsSuccessState() {
+		return payload, fmt.Errorf("github release api status %d", resp.StatusCode)
+	}
+	if 0 == len(payload.TagName) {
+		if err := json.Unmarshal(resp.Bytes(), &payload); err != nil {
+			return payload, fmt.Errorf("decode release payload: %w", err)
+		}
+	}
+	return payload, nil
+}
+
+// DownloadUpdatePkg 由前端确认更新后调用，忽略 DownloadInstallPkg 开关，成功后推送 update-pkg-ready。
+func DownloadUpdatePkg() (downloadPkgURLs []string, checksum string, err error) {
+	defer logging.Recover()
+
+	if skipUpdatePkgPlatform() {
+		err = errors.New("current platform does not support auto install")
+		return
+	}
+
+	release, fetchErr := fetchLatestRelease(context.TODO())
+	if fetchErr != nil {
+		err = fetchErr
+		logging.LogErrorf("download update: fetch latest release failed: %s", err)
+		return
+	}
+	if release.Draft || release.Prerelease {
+		err = errors.New("no stable release")
+		return
+	}
+
+	ver, parseErr := parseTagVersion(release.TagName)
+	if parseErr != nil {
+		err = parseErr
+		return
+	}
+	if isVersionUpToDate(ver) {
+		err = errors.New("version is up to date")
+		return
+	}
+
+	asset, assetErr := selectReleaseAsset(release.Assets, ver, runtime.GOOS, runtime.GOARCH)
+	if assetErr != nil {
+		err = assetErr
+		return
+	}
+	checksum, err = parseSha256Digest(asset.Digest)
+	if err != nil {
+		return
+	}
+	downloadPkgURLs = []string{asset.BrowserDownloadURL}
+	return
+}
+
+// skipUpdatePkgPlatform 仅判断平台是否支持自动安装，不读取 DownloadInstallPkg 设置。
+func skipUpdatePkgPlatform() bool {
+	if !gulu.OS.IsWindows() && !gulu.OS.IsDarwin() {
+		return true
+	}
+	if util.ISMicrosoftStore || util.ContainerStd != util.Container {
+		return true
+	}
+	if gulu.OS.IsWindows() {
+		plat := strings.ToLower(Conf.System.OSPlatform)
+		if strings.Contains(plat, " 7 ") || strings.Contains(plat, " 8 ") || strings.Contains(plat, "2012") {
+			return true
+		}
 	}
 	return false
 }

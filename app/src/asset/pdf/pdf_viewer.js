@@ -220,11 +220,7 @@ class PDFViewer {
 
   #enableUpdatedAddImage = false;
 
-  #enableNewAltTextWhenAddingImage = false;
-
   #eventAbortController = null;
-
-  #mlManager = null;
 
   #switchAnnotationEditorModeAC = null;
 
@@ -296,8 +292,6 @@ class PDFViewer {
     this.#enableHighlightFloatingButton =
       options.enableHighlightFloatingButton === true;
     this.#enableUpdatedAddImage = options.enableUpdatedAddImage === true;
-    this.#enableNewAltTextWhenAddingImage =
-      options.enableNewAltTextWhenAddingImage === true;
     this.imageResourcesPath = options.imageResourcesPath || "";
     this.enablePrintAutoRotate = options.enablePrintAutoRotate || false;
     if (typeof PDFJSDev === "undefined" || PDFJSDev.test("GENERIC")) {
@@ -310,7 +304,6 @@ class PDFViewer {
     }
     this.#enablePermissions = options.enablePermissions || false;
     this.pageColors = options.pageColors || null;
-    this.#mlManager = options.mlManager || null;
     this.#enableHWA = options.enableHWA || false;
 
     this.defaultRenderingQueue = !options.renderingQueue;
@@ -904,23 +897,17 @@ class PDFViewer {
               eventBus,
               pdfDocument,
               pageColors,
-              this.#annotationEditorHighlightColors,
+this.#annotationEditorHighlightColors,
               this.#enableHighlightFloatingButton,
-              this.#enableUpdatedAddImage,
-              this.#enableNewAltTextWhenAddingImage,
-              this.#mlManager
+              this.#enableUpdatedAddImage
             );
             eventBus.dispatch("annotationeditoruimanager", {
               source: this,
               uiManager: this.#annotationEditorUIManager,
             });
             if (mode !== AnnotationEditorType.NONE) {
-              if (mode === AnnotationEditorType.STAMP) {
-                this.#mlManager?.loadModel("altText");
-              }
               this.#annotationEditorUIManager.updateMode(mode);
-            }
-          } else {
+            } else {
             console.error(`Invalid AnnotationEditor mode: ${mode}`);
           }
         }
@@ -2327,9 +2314,6 @@ class PDFViewer {
     }
     if (!this.pdfDocument) {
       return;
-    }
-    if (mode === AnnotationEditorType.STAMP) {
-      this.#mlManager?.loadModel("altText");
     }
 
     const { eventBus } = this;

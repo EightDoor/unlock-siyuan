@@ -74,36 +74,18 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          path: repo
 
-      - name: Clone upstream and apply patches
+      - name: Verify version matches tag
         shell: bash
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/go"
-          cd "$GITHUB_WORKSPACE/repo"
-          
-          git clone --branch ${{ github.event.inputs.version }} --depth=1 https://github.com/siyuan-note/siyuan.git
-          cd siyuan
-          
-          patches_dir="$GITHUB_WORKSPACE/repo/patches/siyuan"
-          shopt -s nullglob
-          for p in "$patches_dir"/*.patch; do
-            tmp=$(mktemp)
-            sed -e 's#\ba/#forkSrcPrefix/#g' -e 's#\bb/#forkDstPrefix/#g' "$p" > "$tmp"
-            echo "::group::Applying $(basename "$p")"
-            if ! git apply --check "$tmp"; then
-              echo "::error::patch $(basename "$p") failed to apply on upstream $(git rev-parse --short HEAD)"
-              exit 1
-            fi
-            git apply "$tmp"
-            echo "patch $(basename "$p") applied"
-            echo "::endgroup::"
-            rm -f "$tmp"
-          done
-          shopt -u nullglob
-          
-          git status
+          PKG_VERSION=$(node -p "require('./app/package.json').version")
+          EXPECTED="${{ github.event.inputs.version }}"
+          # 去掉 v 前缀比较
+          EXPECTED_NO_V="${EXPECTED#v}"
+          if [ "$PKG_VERSION" != "$EXPECTED_NO_V" ]; then
+            echo "::error::Tag version ($EXPECTED) does not match app/package.json version ($PKG_VERSION)"
+            exit 1
+          fi
 
       - name: Set up Cross Compilation Toolchains for Linux
         if: contains(matrix.config.goos, 'linux')
@@ -127,14 +109,14 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: ${{ github.workspace }}/repo/siyuan/kernel/go.mod
+          go-version-file: ${{ github.workspace }}/kernel/go.mod
           cache-dependency-path: "**/*.sum"
       - run: go version
 
       - name: Set up goversioninfo
         if: contains(matrix.config.goos, 'windows')
         run: go get github.com/josephspurrier/goversioninfo/cmd/goversioninfo && go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo
-        working-directory: ${{ github.workspace }}/repo/siyuan/kernel
+        working-directory: ${{ github.workspace }}/kernel
         env:
           GO111MODULE: on
           CGO_ENABLED: 1
@@ -149,20 +131,20 @@ jobs:
 
       - name: Install Node pnpm
         run: npm install -g ${{ github.event.inputs.packageManager }}
-        working-directory: ${{ github.workspace }}/repo/siyuan/app
+        working-directory: ${{ github.workspace }}/app
 
       - name: Install Node Dependencies
         run: pnpm install --no-frozen-lockfile
-        working-directory: ${{ github.workspace }}/repo/siyuan/app
+        working-directory: ${{ github.workspace }}/app
 
       - name: Building UI
         run: pnpm run build
-        working-directory: ${{ github.workspace }}/repo/siyuan/app
+        working-directory: ${{ github.workspace }}/app
 
       - name: Generate Icon Resource For Windows
         if: contains(matrix.config.goos, 'windows')
         run: ${{ github.workspace }}\go\${{ matrix.config.gobin }}\goversioninfo -platform-specific=true -icon="resource\icon.ico" -manifest="resource\goversioninfo.exe.manifest"
-        working-directory: ${{ github.workspace }}/repo/siyuan/kernel
+        working-directory: ${{ github.workspace }}/kernel
 
       - name: Clean Build Directories
         if: contains(matrix.config.goos, 'linux')
@@ -170,7 +152,7 @@ jobs:
           rm -rf app/build
           rm -rf app/kernel-linux
           rm -rf app/kernel-linux-arm64
-        working-directory: ${{ github.workspace }}/repo/siyuan
+        working-directory: ${{ github.workspace }}
 
       - name: Clean Build Directories for macOS
         if: contains(matrix.config.goos, 'darwin')
@@ -178,18 +160,18 @@ jobs:
           rm -rf app/build
           rm -rf app/kernel-darwin
           rm -rf app/kernel-darwin-arm64
-        working-directory: ${{ github.workspace }}/repo/siyuan
+        working-directory: ${{ github.workspace }}
 
       - name: Clean Build Directories for Windows
         if: contains(matrix.config.goos, 'windows')
         run: |
           Remove-Item -Recurse -Force app/build -ErrorAction SilentlyContinue
           Remove-Item -Recurse -Force app/kernel -ErrorAction SilentlyContinue
-        working-directory: ${{ github.workspace }}/repo/siyuan
+        working-directory: ${{ github.workspace }}
 
       - name: Building Kernel
         run: go build --tags fts5 -o "${{ matrix.config.kernel_path }}" -v -ldflags "${{ matrix.config.build_args }}"
-        working-directory: ${{ github.workspace }}/repo/siyuan/kernel
+        working-directory: ${{ github.workspace }}/kernel
         env:
           GO111MODULE: on
           CGO_ENABLED: 1
@@ -201,7 +183,7 @@ jobs:
 
       - name: Building Electron
         run: pnpm run ${{ matrix.config.electron_args }}
-        working-directory: ${{ github.workspace }}/repo/siyuan/app
+        working-directory: ${{ github.workspace }}/app
 
       - name: Get Release
         id: get_release
@@ -216,7 +198,7 @@ jobs:
         id: win_artifact
         shell: pwsh
         run: |
-          $buildDir = Join-Path $env:GITHUB_WORKSPACE "repo\siyuan\app\build"
+          $buildDir = Join-Path $env:GITHUB_WORKSPACE "app\build"
           $file = Get-ChildItem -Path $buildDir -Filter "siyuan-*-win.exe" -File | Select-Object -First 1
           if (-not $file) {
             Write-Error "Windows artifact not found in $buildDir"
@@ -250,5 +232,5 @@ jobs:
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
           asset_name: siyuan-${{ github.event.inputs.version }}-${{ matrix.config.suffix }}
-          asset_path: ${{ github.workspace }}/repo/siyuan/app/build/siyuan-*-${{ matrix.config.suffix }}
+          asset_path: ${{ github.workspace }}/app/build/siyuan-*-${{ matrix.config.suffix }}
           asset_content_type: application/octet-stream

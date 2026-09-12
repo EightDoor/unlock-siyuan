@@ -33,7 +33,6 @@ import (
 	"github.com/88250/lute"
 	"github.com/88250/lute/ast"
 	"github.com/Xuanwo/go-locale"
-	"github.com/sashabaranov/go-openai"
 	"github.com/siyuan-note/eventbus"
 	"github.com/siyuan-note/filelock"
 	"github.com/siyuan-note/logging"
@@ -71,7 +70,6 @@ type AppConf struct {
 	Sync           *conf.Sync       `json:"sync"`           // 同步配置
 	Search         *conf.Search     `json:"search"`         // 搜索配置
 	Flashcard      *conf.Flashcard  `json:"flashcard"`      // 闪卡配置
-	AI             *conf.AI         `json:"ai"`             // 人工智能配置
 	Bazaar         *conf.Bazaar     `json:"bazaar"`         // 集市配置
 	Stat           *conf.Stat       `json:"stat"`           // 统计
 	Api            *conf.API        `json:"api"`            // API
@@ -532,51 +530,6 @@ func InitConf() {
 		}()
 	}
 
-	if nil == Conf.AI {
-		Conf.AI = conf.NewAI()
-	}
-	if "" == Conf.AI.OpenAI.APIModel {
-		Conf.AI.OpenAI.APIModel = openai.GPT3Dot5Turbo
-	}
-	if "" == Conf.AI.OpenAI.APIUserAgent {
-		Conf.AI.OpenAI.APIUserAgent = util.UserAgent
-	}
-	if strings.HasPrefix(Conf.AI.OpenAI.APIUserAgent, "SiYuan/") {
-		Conf.AI.OpenAI.APIUserAgent = util.UserAgent
-	}
-	if "" == Conf.AI.OpenAI.APIProvider {
-		Conf.AI.OpenAI.APIProvider = "OpenAI"
-	}
-	if 0 > Conf.AI.OpenAI.APIMaxTokens {
-		Conf.AI.OpenAI.APIMaxTokens = 0
-	}
-	if 0 >= Conf.AI.OpenAI.APITemperature || 2 < Conf.AI.OpenAI.APITemperature {
-		Conf.AI.OpenAI.APITemperature = 1.0
-	}
-	if 1 > Conf.AI.OpenAI.APIMaxContexts || 64 < Conf.AI.OpenAI.APIMaxContexts {
-		Conf.AI.OpenAI.APIMaxContexts = 7
-	}
-
-	if "" != Conf.AI.OpenAI.APIKey {
-		logging.LogInfof("OpenAI API enabled\n"+
-			"    userAgent=%s\n"+
-			"    baseURL=%s\n"+
-			"    timeout=%ds\n"+
-			"    proxy=%s\n"+
-			"    model=%s\n"+
-			"    maxTokens=%d\n"+
-			"    temperature=%.1f\n"+
-			"    maxContexts=%d",
-			Conf.AI.OpenAI.APIUserAgent,
-			Conf.AI.OpenAI.APIBaseURL,
-			Conf.AI.OpenAI.APITimeout,
-			Conf.AI.OpenAI.APIProxy,
-			Conf.AI.OpenAI.APIModel,
-			Conf.AI.OpenAI.APIMaxTokens,
-			Conf.AI.OpenAI.APITemperature,
-			Conf.AI.OpenAI.APIMaxContexts)
-	}
-
 	Conf.ReadOnly = util.ReadOnly
 
 	if "" != util.AccessAuthCode {
@@ -1003,20 +956,13 @@ func InitBoxes() {
 }
 
 func IsSubscriber() bool {
-	u := Conf.GetUser()
-	return nil != u && (-1 == u.UserSiYuanProExpireTime || 0 < u.UserSiYuanProExpireTime) && 0 == u.UserSiYuanSubscriptionStatus
+	// [FORK-MOD] 始终返回 true，跳过订阅检查
+	return true
 }
 
 func IsPaidUser() bool {
-	if IsSubscriber() {
-		return true
-	}
-
-	u := Conf.GetUser()
-	if nil == u {
-		return false
-	}
-	return 1 == u.UserSiYuanOneTimePayStatus
+	// [FORK-MOD] 始终返回 true，跳过付费检查（S3/WebDAV 可用）
+	return true
 }
 
 const (
@@ -1047,7 +993,6 @@ func GetMaskedConf() (ret *AppConf, err error) {
 // HideConfSecret 隐藏设置中的秘密信息
 // REF: https://github.com/siyuan-note/siyuan/issues/11364
 func HideConfSecret(c *AppConf) {
-	c.AI = &conf.AI{}
 	c.Api = &conf.API{}
 	c.Flashcard = &conf.Flashcard{}
 	c.ServerAddrs = []string{}

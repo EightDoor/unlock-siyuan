@@ -37,8 +37,8 @@ func NewSync() *Sync {
 		Enabled:             false,
 		Perception:          false,
 		Mode:                1,
-		GenerateConflictDoc: false,
-		Provider:            ProviderSiYuan,
+		GenerateConflictDoc: true,    // [FORK-MOD] 默认生成冲突文档
+		Provider:            ProviderS3, // [FORK-MOD] 默认同步提供者改为 S3
 		Interval:            30,
 	}
 }

@@ -276,6 +276,46 @@ func checkUpdate(c *gin.Context) {
 	model.CheckUpdate(showMsg)
 }
 
+// [FORK-MOD] downloadUpdate 由前端确认更新后调用，忽略 DownloadInstallPkg 开关，下载安装包并推送结果。
+func downloadUpdate(c *gin.Context) {
+	ret := gulu.Ret.NewResult()
+	defer c.JSON(http.StatusOK, ret)
+
+	if !model.TryLockCheckDownloadInstallPkg() {
+		ret.Code = -1
+		ret.Msg = model.Conf.Language(10)
+		util.PushUpdateMsg("update-pkg-downloading", model.Conf.Language(10), 7000)
+		return
+	}
+	defer model.UnlockCheckDownloadInstallPkg()
+
+	downloadPkgURLs, checksum, err := model.DownloadUpdatePkg()
+	if err != nil {
+		ret.Code = -1
+		ret.Msg = err.Error()
+		logging.LogErrorf("download update failed: %s", err)
+		return
+	}
+
+	util.PushUpdateMsg("update-pkg-downloading", model.Conf.Language(103), 1000*7)
+	success := false
+	for _, url := range downloadPkgURLs {
+		if downloadErr := model.DownloadInstallPkg(url, checksum); downloadErr == nil {
+			success = true
+			break
+		} else {
+			logging.LogErrorf("download update from [%s] failed: %s", url, downloadErr)
+		}
+	}
+	if success {
+		util.PushUpdateMsg("update-pkg-ready", model.Conf.Language(62), 15*1000)
+	} else {
+		ret.Code = -1
+		ret.Msg = model.Conf.Language(104)
+		util.PushUpdateMsg("update-pkg-downloading", model.Conf.Language(104), 7000)
+	}
+}
+
 func exportLog(c *gin.Context) {
 	ret := gulu.Ret.NewResult()
 	defer c.JSON(http.StatusOK, ret)
@@ -513,7 +553,6 @@ func importConf(c *gin.Context) {
 	model.Conf.Keymap = importedConf.Keymap
 	model.Conf.Search = importedConf.Search
 	model.Conf.Flashcard = importedConf.Flashcard
-	model.Conf.AI = importedConf.AI
 	model.Conf.Bazaar = importedConf.Bazaar
 	model.Conf.Save()
 

@@ -137,14 +137,6 @@ const defaultOptions = {
     kind: OptionKind.BROWSER + OptionKind.EVENT_DISPATCH,
   },
 
-  altTextLearnMoreUrl: {
-    /** @type {string} */
-    value:
-      typeof PDFJSDev !== "undefined" && PDFJSDev.test("MOZCENTRAL")
-        ? "https://support.mozilla.org/1/firefox/%VERSION%/%OS%/%LOCALE%/pdf-alt-text"
-        : "",
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE,
-  },
   annotationEditorMode: {
     /** @type {number} */
     value: 0,
@@ -185,32 +177,12 @@ const defaultOptions = {
     value: false,
     kind: OptionKind.VIEWER + OptionKind.PREFERENCE,
   },
-  enableAltText: {
-    /** @type {boolean} */
-    value: false,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE,
-  },
-  enableAltTextModelDownload: {
-    /** @type {boolean} */
-    value: true,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE + OptionKind.EVENT_DISPATCH,
-  },
-  enableGuessAltText: {
-    /** @type {boolean} */
-    value: true,
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE + OptionKind.EVENT_DISPATCH,
-  },
   enableHighlightFloatingButton: {
     // We'll probably want to make some experiments before enabling this
     // in Firefox release, but it has to be temporary.
     // TODO: remove it when unnecessary.
     /** @type {boolean} */
     value: typeof PDFJSDev === "undefined" || PDFJSDev.test("TESTING"),
-    kind: OptionKind.VIEWER + OptionKind.PREFERENCE,
-  },
-  enableNewAltTextWhenAddingImage: {
-    /** @type {boolean} */
-    value: true,
     kind: OptionKind.VIEWER + OptionKind.PREFERENCE,
   },
   enablePermissions: {
@@ -470,11 +442,6 @@ if (typeof PDFJSDev === "undefined" || !PDFJSDev.test("MOZCENTRAL")) {
     /** @type {number} */
     value: typeof PDFJSDev !== "undefined" && PDFJSDev.test("CHROME") ? 2 : 0,
     kind: OptionKind.VIEWER + OptionKind.PREFERENCE,
-  };
-  defaultOptions.enableFakeMLManager = {
-    /** @type {boolean} */
-    value: true,
-    kind: OptionKind.VIEWER,
   };
 }
 if (typeof PDFJSDev === "undefined" || PDFJSDev.test("GENERIC")) {

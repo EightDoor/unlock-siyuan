@@ -32,34 +32,16 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          path: repo
 
-      - name: Clone upstream and apply patches
+      - name: Verify version matches tag
         run: |
-          cd ${{ github.workspace }}/repo
-          
-          git clone --branch ${{ github.event.inputs.version }} --depth=1 https://github.com/siyuan-note/siyuan.git
-          cd siyuan
-          
-          patches_dir="${{ github.workspace }}/repo/patches/siyuan"
-          shopt -s nullglob
-          for p in "$patches_dir"/*.patch; do
-            tmp=$(mktemp)
-            sed -e 's#\ba/#forkSrcPrefix/#g' -e 's#\bb/#forkDstPrefix/#g' "$p" > "$tmp"
-            echo "::group::Applying $(basename "$p")"
-            if ! git apply --check "$tmp"; then
-              echo "::error::patch $(basename "$p") failed to apply on upstream $(git rev-parse --short HEAD)"
-              exit 1
-            fi
-            git apply "$tmp"
-            echo "patch $(basename "$p") applied"
-            echo "::endgroup::"
-            rm -f "$tmp"
-          done
-          shopt -u nullglob
-          
-          git status
+          PKG_VERSION=$(node -p "require('./app/package.json').version")
+          EXPECTED="${{ github.event.inputs.version }}"
+          EXPECTED_NO_V="${EXPECTED#v}"
+          if [ "$PKG_VERSION" != "$EXPECTED_NO_V" ]; then
+            echo "::error::Tag version ($EXPECTED) does not match app/package.json version ($PKG_VERSION)"
+            exit 1
+          fi
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -90,7 +72,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: ${{ github.workspace }}/repo/siyuan
+          context: ${{ github.workspace }}
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |

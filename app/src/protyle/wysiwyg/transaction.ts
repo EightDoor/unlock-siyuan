@@ -95,6 +95,9 @@ const promiseTransaction = () => {
         if (getSelection().rangeCount > 0) {
             range = getSelection().getRangeAt(0);
         }
+        // 批量渲染标记：多个 update 事务合并为一次全量渲染，避免重复扫描整个编辑区域
+        let needsUpdateRender = false;
+        let needsEmbedRender = false;
         response.data[0].doOperations.forEach((operation: IOperation) => {
             if (operation.action === "unfoldHeading" || operation.action === "foldHeading") {
                 processFold(operation, protyle);
@@ -112,13 +115,12 @@ const promiseTransaction = () => {
                             }
                         }
                     });
-                    processRender(protyle.wysiwyg.element);
-                    highlightRender(protyle.wysiwyg.element);
-                    avRender(protyle.wysiwyg.element, protyle);
-                    blockRender(protyle, protyle.wysiwyg.element);
+                    needsUpdateRender = true;
                 }
                 // 当前编辑器中更新嵌入块
-                updateEmbed(protyle, operation);
+                if (updateEmbed(protyle, operation, true)) {
+                    needsEmbedRender = true;
+                }
                 return;
             }
             if (operation.action === "delete" || operation.action === "append") {
@@ -255,6 +257,14 @@ const promiseTransaction = () => {
             }
         });
 
+        // 批量渲染：将多个 update 事务的渲染合并为一次，避免逐个操作重复扫描整个编辑区域
+        if (needsUpdateRender || needsEmbedRender) {
+            processRender(protyle.wysiwyg.element);
+            highlightRender(protyle.wysiwyg.element);
+            avRender(protyle.wysiwyg.element, protyle);
+            blockRender(protyle, protyle.wysiwyg.element);
+        }
+
         // 删除仅有的折叠标题后展开内容为空
         if (protyle.wysiwyg.element.childElementCount === 0 &&
             // 聚焦时不需要新增块，否则会导致 https://github.com/siyuan-note/siyuan/issues/12326 第一点
@@ -274,7 +284,7 @@ const promiseTransaction = () => {
     });
 };
 
-const updateEmbed = (protyle: IProtyle, operation: IOperation) => {
+const updateEmbed = (protyle: IProtyle, operation: IOperation, deferRender = false) => {
     let updatedEmbed = false;
 
     const updateHTML = (item: Element, html: string) => {
@@ -311,11 +321,12 @@ const updateEmbed = (protyle: IProtyle, operation: IOperation) => {
             });
         }
     });
-    if (updatedEmbed) {
+    if (updatedEmbed && !deferRender) {
         processRender(protyle.wysiwyg.element);
         highlightRender(protyle.wysiwyg.element);
         avRender(protyle.wysiwyg.element, protyle);
     }
+    return updatedEmbed;
 };
 
 const deleteBlock = (updateElements: Element[], id: string, protyle: IProtyle, isUndo: boolean) => {

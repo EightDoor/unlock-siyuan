@@ -23,7 +23,7 @@ type Account struct {
 
 func NewAccount() *Account {
 	return &Account{
-		DisplayTitle: true,
-		DisplayVIP:   true,
+		DisplayTitle: false, // [FORK-MOD] 默认不显示头衔
+		DisplayVIP:   false, // [FORK-MOD] 默认不显示 VIP 标识
 	}
 }

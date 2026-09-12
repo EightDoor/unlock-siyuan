@@ -10,7 +10,6 @@ import {openHistory} from "../../history/history";
 import {syncGuide} from "../../sync/syncGuide";
 import {openCard} from "../../card/openCard";
 import {activeBlur} from "../util/keyboardToolbar";
-import {initAI} from "../settings/ai";
 import {initRiffCard} from "../settings/riffCard";
 import {login, showAccountInfo} from "../settings/account";
 import {openModel} from "./model";
@@ -48,15 +47,6 @@ export const initRightMenu = (app: App) => {
         accountHTML = `<div class="b3-menu__item" id="menuAccount">
     <svg class="b3-menu__icon"><use xlink:href="#iconAccount"></use></svg><span class="b3-menu__label">${window.siyuan.languages.login}</span>
 </div>`;
-    }
-
-    let aiHTML = `<div class="b3-menu__item${window.siyuan.config.readonly ? " fn__none" : ""}" id="menuAI">
-        <svg class="b3-menu__icon"><use xlink:href="#iconSparkles"></use></svg><span class="b3-menu__label">AI</span>
-    </div>`;
-    if (isHuawei() || isDisabledFeature("ai")) {
-        // Access to the OpenAI API is no longer supported on Huawei devices https://github.com/siyuan-note/siyuan/issues/8192
-        // Apps in Chinese mainland app stores no longer provide AI access settings https://github.com/siyuan-note/siyuan/issues/13051
-        aiHTML = "";
     }
 
     menuElement.innerHTML = `<div class="b3-menu__title">
@@ -110,7 +100,6 @@ export const initRightMenu = (app: App) => {
     <div class="b3-menu__item${window.siyuan.config.readonly ? " fn__none" : ""}" id="menuRiffCard">
         <svg class="b3-menu__icon"><use xlink:href="#iconRiffCard"></use></svg><span class="b3-menu__label">${window.siyuan.languages.riffCard}</span>
     </div>
-    ${aiHTML}
     <div class="b3-menu__item${window.siyuan.config.readonly ? " fn__none" : ""}" id="menuAssets">
         <svg class="b3-menu__icon"><use xlink:href="#iconImage"></use></svg><span class="b3-menu__label">${window.siyuan.languages.assets}</span>
     </div>
@@ -182,11 +171,6 @@ export const initRightMenu = (app: App) => {
                 break;
             } else if (target.id === "menuExport") {
                 initExport();
-                event.preventDefault();
-                event.stopPropagation();
-                break;
-            } else if (target.id === "menuAI") {
-                initAI();
                 event.preventDefault();
                 event.stopPropagation();
                 break;

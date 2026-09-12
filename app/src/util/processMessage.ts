@@ -1,7 +1,11 @@
 /// #if !MOBILE
 import {exportLayout} from "../layout/util";
 /// #endif
+/// #if !BROWSER
+import {ipcRenderer} from "electron";
+/// #endif
 import {hideMessage, showMessage} from "../dialog/message";
+import {confirmDialog} from "../dialog/confirmDialog";
 import {setStorageVal} from "../protyle/util/compatibility";
 import {Constants} from "../constants";
 import {fetchPost} from "./fetch";
@@ -64,6 +68,48 @@ export const processMessage = (response: IWebSocketData) => {
     }
     if ("closepublishpage" === response.cmd) {
         handlePublishServiceClosed(response.msg);
+        return false;
+    }
+
+    // [FORK-MOD] 处理后端推送的更新确认对话框
+    if ("update-confirm" === response.cmd) {
+        const version = response.data?.version || "";
+        const url = response.data?.url || "";
+        confirmDialog(
+            `${window.siyuan.languages.updateVersion || "Update"}`,
+            `${window.siyuan.languages.confirmUpdate || "Confirm Update"} ${version}?<br><a href="${url}" target="_blank">${url}</a>`,
+            () => {
+                // 用户确认：调用下载接口
+                fetchPost("/api/system/downloadUpdate", {}, (resp) => {
+                    if (resp.code === 0) {
+                        // 下载成功后弹出安装确认
+                        confirmDialog(
+                            `${window.siyuan.languages.updateVersion || "Update"}`,
+                            `${window.siyuan.languages.updateReady || "Update package is ready. Install now?"}`,
+                            () => {
+                                // 用户确认安装：退出并执行安装
+                                fetchPost("/api/system/exit", {force: true, setCurrentWorkspace: true, execInstallPkg: 2}, () => {
+                                    /// #if !BROWSER
+                                    setTimeout(() => {
+                                        ipcRenderer.send(Constants.SIYUAN_CMD, "hide");
+                                    }, 2000);
+                                    setTimeout(() => {
+                                        ipcRenderer.send(Constants.SIYUAN_QUIT, location.port);
+                                    }, 4000);
+                                    /// #endif
+                                });
+                            },
+                            () => {
+                                // 用户选择稍后：不做任何事
+                            }
+                        );
+                    }
+                });
+            },
+            () => {
+                // 用户选择稍后：不做任何事
+            }
+        );
         return false;
     }
 

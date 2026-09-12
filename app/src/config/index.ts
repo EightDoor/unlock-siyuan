@@ -14,7 +14,6 @@ import {keymap} from "./keymap";
 import {bazaar} from "./bazaar";
 import {query} from "./query";
 import {Dialog} from "../dialog";
-import {ai} from "./ai";
 import {flashcard} from "./flashcard";
 import {publish} from "./publish";
 import {App} from "../index";
@@ -29,11 +28,6 @@ export const genItemPanel = (type: string, containerElement: Element, app: App) 
             containerElement.innerHTML = fileTree.genHTML();
             fileTree.element = containerElement;
             fileTree.bindEvent();
-            break;
-        case "AI":
-            containerElement.innerHTML = ai.genHTML();
-            ai.element = containerElement;
-            ai.bindEvent();
             break;
         case "card":
             containerElement.innerHTML = flashcard.genHTML();
@@ -124,7 +118,6 @@ export const openSetting = (app: App) => {
     <li data-name="editor" class="b3-list-item--focus b3-list-item"><svg class="b3-list-item__graphic"><use xlink:href="#iconEdit"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.editor}</span></li>
     <li data-name="filetree" class="b3-list-item"><svg class="b3-list-item__graphic"><use xlink:href="#iconFiles"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.fileTree}</span></li>
     <li data-name="card" class="b3-list-item"><svg class="b3-list-item__graphic"><use xlink:href="#iconRiffCard"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.riffCard}</span></li>
-    <li data-name="AI" class="b3-list-item"><svg class="b3-list-item__graphic"><use xlink:href="#iconSparkles"></use></svg><span class="b3-list-item__text">AI</span></li>
     <li data-name="image" class="b3-list-item"><svg class="b3-list-item__graphic"><use xlink:href="#iconImage"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.assets}</span></li>
     <li data-name="export" class="b3-list-item"><svg class="b3-list-item__graphic"><use xlink:href="#iconUpload"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.export}</span></li>
     <li data-name="appearance" class="b3-list-item"><svg class="b3-list-item__graphic"><use xlink:href="#iconTheme"></use></svg><span class="b3-list-item__text">${window.siyuan.languages.appearance}</span></li>
@@ -141,7 +134,6 @@ export const openSetting = (app: App) => {
       <div class="config__tab-container" data-name="editor">${editor.genHTML()}</div>
       <div class="config__tab-container fn__none" data-name="filetree"></div>
       <div class="config__tab-container fn__none" data-name="card"></div>
-      <div class="config__tab-container config__tab-container--top fn__none" data-name="AI"></div>
       <div class="config__tab-container config__tab-container--top fn__none" data-name="image"></div>
       <div class="config__tab-container fn__none" data-name="export"></div>
       <div class="config__tab-container fn__none" data-name="appearance"></div>

@@ -62,6 +62,7 @@ func ServeAPI(ginServer *gin.Engine) {
 	ginServer.Handle("POST", "/api/system/exit", model.CheckAuth, model.CheckAdminRole, exit)
 	ginServer.Handle("POST", "/api/system/getConf", model.CheckAuth, getConf)
 	ginServer.Handle("POST", "/api/system/checkUpdate", model.CheckAuth, model.CheckAdminRole, checkUpdate)
+	ginServer.Handle("POST", "/api/system/downloadUpdate", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, downloadUpdate) // [FORK-MOD] 新增手动下载更新接口
 	ginServer.Handle("POST", "/api/system/exportLog", model.CheckAuth, model.CheckAdminRole, exportLog)
 	ginServer.Handle("POST", "/api/system/getChangelog", model.CheckAuth, getChangelog)
 	ginServer.Handle("POST", "/api/system/getNetwork", model.CheckAuth, model.CheckAdminRole, getNetwork)
@@ -376,7 +377,6 @@ func ServeAPI(ginServer *gin.Engine) {
 	ginServer.Handle("POST", "/api/setting/login2faCloudUser", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, login2faCloudUser)
 	ginServer.Handle("POST", "/api/setting/setEmoji", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, setEmoji)
 	ginServer.Handle("POST", "/api/setting/setFlashcard", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, setFlashcard)
-	ginServer.Handle("POST", "/api/setting/setAI", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, setAI)
 	ginServer.Handle("POST", "/api/setting/setBazaar", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, setBazaar)
 	ginServer.Handle("POST", "/api/setting/setPublish", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, setPublish)
 	ginServer.Handle("POST", "/api/setting/getPublish", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, getPublish)
@@ -498,9 +498,6 @@ func ServeAPI(ginServer *gin.Engine) {
 	ginServer.Handle("POST", "/api/av/getUnusedAttributeViews", model.CheckAuth, getUnusedAttributeViews)
 	ginServer.Handle("POST", "/api/av/removeUnusedAttributeViews", model.CheckAuth, removeUnusedAttributeViews)
 	ginServer.Handle("POST", "/api/av/removeUnusedAttributeView", model.CheckAuth, removeUnusedAttributeView)
-
-	ginServer.Handle("POST", "/api/ai/chatGPT", model.CheckAuth, model.CheckAdminRole, chatGPT)
-	ginServer.Handle("POST", "/api/ai/chatGPTWithAction", model.CheckAuth, model.CheckAdminRole, chatGPTWithAction)
 
 	ginServer.Handle("POST", "/api/petal/loadPetals", model.CheckAuth, loadPetals)
 	ginServer.Handle("POST", "/api/petal/setPetalEnabled", model.CheckAuth, model.CheckAdminRole, model.CheckReadonly, setPetalEnabled)

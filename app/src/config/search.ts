@@ -45,11 +45,6 @@ export const initConfigSearch = (element: HTMLElement, app: App) => {
             "flashcardFSRSParamMaximumInterval", "flashcardFSRSParamMaximumIntervalTip", "flashcardFSRSParamWeights",
             "flashcardFSRSParamWeightsTip", "reviewMode", "reviewModeTip"]),
 
-        // AI
-        ["AI"].concat(getLang(["ai", "apiTimeout", "apiTimeoutTip", "apiMaxTokens", "apiMaxTokensTip", "apiKey",
-            "apiKeyTip", "apiProxy", "apiProxyTip", "apiBaseURL", "apiBaseURLTip", "apiUserAgentTip", "apiVersion", "apiVersionTip",
-            "apiProvider", "apiProviderTip", "apiTemperature", "apiTemperatureTip", "apiMaxContexts", "apiMaxContextsTip"])),
-
         // 资源
         getLang(["assets", "unreferencedAssets", "missingAssets"]),
 

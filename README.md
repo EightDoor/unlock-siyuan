@@ -1,6 +1,6 @@
 # 🔓 SiYuan Unlock Edition
 
-> 基于 [siyuan-note/siyuan](https://github.com/siyuan-note/siyuan) 的定制版本
+> 独立维护的 SiYuan 定制版本
 
 ## ✨ 定制内容
 
@@ -10,20 +10,41 @@
 | **关闭自动更新** | 默认关闭自动下载更新安装包 |
 | **Docker 支持** | 自动构建多架构 Docker 镜像 (amd64/arm64) |
 
+## 🔄 发布流程
+
+1. 从上游 [siyuan-note/siyuan](https://github.com/siyuan-note/siyuan) 合并代码
+2. 在本仓库开发、测试
+3. 更新 `app/package.json` 中的 `version` 字段
+4. 推送版本标签 `vX.Y.Z`（必须与 `app/package.json` 的 version 严格匹配）
+5. GitHub Actions 自动构建与发布
+
+### Tag 命名规范
+
+```
+vX.Y.Z
+```
+
+- 必须与 `app/package.json` 的 `version` 严格匹配
+- 例如：`app/package.json` 中 version 为 `3.5.8`，则标签为 `v3.5.8`
+
+### 手动触发
+
+每个构建工作流也支持通过 `workflow_dispatch` 手动触发。
+
 ## 🐳 Docker 使用
 
 ```bash
-# 拉取镜像 (替换 <DOCKER_USERNAME> 为你的 Docker Hub 用户名)
-docker pull <DOCKER_USERNAME>/siyuan:latest
+# Docker Hub
+docker pull 851708184/siyuan:latest
 
-# 或从 GitHub Container Registry 拉取
+# GitHub Container Registry
 docker pull ghcr.io/eightdoor/unlock-siyuan:latest
 
 # 运行容器
 docker run -d \
   -v /path/to/workspace:/siyuan/workspace \
   -p 6806:6806 \
-  <DOCKER_USERNAME>/siyuan:latest \
+  851708184/siyuan:latest \
   --workspace=/siyuan/workspace \
   --accessAuthCode=your_password
 ```
@@ -31,15 +52,7 @@ docker run -d \
 ## 📥 下载
 
 - [GitHub Releases](https://github.com/EightDoor/unlock-siyuan/releases)
-- [Docker Hub](https://hub.docker.com/r/<DOCKER_USERNAME>/siyuan)
-
-## 🔄 同步上游
-
-当上游 siyuan-note/siyuan 有新版本时：
-
-```bash
-./scripts/sync-upstream.sh
-```
+- [Docker Hub](https://hub.docker.com/r/851708184/siyuan)
 
 ## ⚙️ GitHub Actions 配置
 
@@ -60,84 +73,43 @@ docker run -d \
 |----------|------|--------|
 | `IMAGE_NAME` | Docker 镜像名称 | `siyuan` |
 
----
-
-### 🔧 配置步骤
-
-#### 1. 创建 Docker Hub Token
-
-1. 登录 [Docker Hub](https://hub.docker.com/)
-2. 点击右上角头像 → **Account Settings**
-3. 左侧菜单 → **Security**
-4. 点击 **New Access Token**
-5. 设置：
-   - Name: `github-actions`
-   - Permissions: `Read, Write, Delete`
-6. 点击 **Generate** 并**复制 Token**（只显示一次）
-
-#### 2. 添加 GitHub Secrets
-
-1. 进入仓库 **Settings** → **Secrets and variables** → **Actions**
-2. 点击 **New repository secret**
-3. 添加用户名：
-   - Name: `DOCKER_USERNAME`
-   - Secret: 你的 Docker Hub 用户名
-4. 点击 **Add secret**
-5. 再次点击 **New repository secret**
-6. 添加 Token：
-   - Name: `DOCKERHUB_TOKEN`
-   - Secret: 粘贴刚才复制的 Token
-7. 点击 **Add secret**
-
-#### 3. 添加 GitHub Variable（可选）
-
-1. 在同一页面点击 **Variables** 标签
-2. 点击 **New repository variable**
-3. 填写：
-   - Name: `IMAGE_NAME`
-   - Value: `siyuan`（或其他镜像名称）
-4. 点击 **Add variable**
-
----
-
 ### 🚀 工作流说明
 
 | 工作流 | 触发条件 | 功能 |
 |--------|---------|------|
-| **Build and Release** | Tag 推送 / 手动触发 | 构建 Docker 镜像 + 创建 Release |
-| **Sync Upstream** | 每7天自动 / 手动触发 | 同步上游代码 + 应用补丁 |
+| **release-tag** | 推送 `v*` 标签 / 手动触发 | 创建 Release 并触发所有平台构建 |
+| **desktop-release** | release-tag 触发 / 手动触发 | 构建桌面端（Windows/macOS/Linux） |
+| **release-docker** | release-tag 触发 / 手动触发 | 构建并推送 Docker 镜像 |
+| **release-android** | release-tag 触发 / 手动触发 | 构建 Android APK |
+| **release-ios** | release-tag 触发 / 手动触发 | 构建 iOS IPA |
+| **dev-check** | PR / push 到 main 或 dev | 编译检查（kernel + app） |
 
-### 📋 手动触发构建
+### 📋 发布新版本
 
-1. 进入 **Actions** 页面
-2. 选择 **Build and Release**
-3. 点击 **Run workflow**
-4. 配置选项：
+```bash
+# 1. 更新版本号
+# 编辑 app/package.json，将 version 改为目标版本
 
-| 选项 | 说明 | 默认值 |
-|------|------|--------|
-| `push_docker` | 推送到 Docker Hub | ✅ true |
-| `push_ghcr` | 推送到 GitHub Container Registry | ✅ true |
-| `build_platforms` | 构建平台 | linux/amd64,linux/arm64 |
-| `create_release` | 创建 GitHub Release | ✅ true |
+# 2. 提交并推送
+git add app/package.json
+git commit -m "bump version to vX.Y.Z"
+git push
 
----
+# 3. 打标签并推送
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
 
 ## 📁 目录结构
 
 ```
-├── .patches/              # 补丁文件
-│   ├── 001-vip-bypass.patch
-│   └── 002-disable-auto-update.patch
-├── scripts/               # 维护脚本
-│   ├── apply-patches.sh
-│   ├── apply-patches.ps1
-│   └── sync-upstream.sh
-├── .github/workflows/     # CI/CD
-│   ├── build-release.yml
-│   └── sync-upstream.yml
-├── README.md              # 本文件
-└── ...                    # SiYuan 源码
+├── app/                    # 前端代码
+├── kernel/                 # 后端 Go 代码
+├── patches/                # 补丁文件（历史）
+├── scripts/                # 维护脚本
+├── .github/workflows/      # CI/CD 工作流
+├── Dockerfile              # Docker 构建文件
+└── README.md               # 本文件
 ```
 
 ## ⚠️ 免责声明
@@ -164,11 +136,3 @@ DOCKERHUB_TOKEN: "dckr_pat_xxxxxxxxxxxx"
 # GitHub Variables（可选，有默认值）
 IMAGE_NAME: "siyuan"           # 默认: siyuan
 ```
-
-### 你需要配置：
-
-| 类型 | 名称 | 说明 |
-|------|------|------|
-| Secret | `DOCKER_USERNAME` | Docker Hub 用户名 |
-| Secret | `DOCKERHUB_TOKEN` | Docker Hub Access Token |
-| Variable | `IMAGE_NAME` | 镜像名称（可选，默认 siyuan） |

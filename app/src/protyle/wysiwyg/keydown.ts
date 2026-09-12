@@ -70,10 +70,8 @@ import {getSavePath, newFileBySelect} from "../../util/newFile";
 import {removeSearchMark} from "../toolbar/util";
 import {avKeydown} from "../render/av/keydown";
 import {checkFold} from "../../util/noRelyPCFunction";
-import {AIActions} from "../../ai/actions";
 import {openLink} from "../../editor/openLink";
 import {onlyProtyleCommand} from "../../boot/globalEvent/command/protyle";
-import {AIChat} from "../../ai/chat";
 import {updateCalloutType} from "./callout";
 import {tabCodeBlock} from "./codeBlock";
 
@@ -1833,24 +1831,6 @@ export const keydown = (protyle: IProtyle, editorElement: HTMLElement) => {
                 type: "BlocksMergeSuperBlock",
                 level: "col"
             });
-            return;
-        }
-
-        if (!event.repeat && matchHotKey(window.siyuan.config.keymap.editor.general.ai.custom, event)) {
-            event.preventDefault();
-            event.stopPropagation();
-            let selectsElement: HTMLElement[] = Array.from(protyle.wysiwyg.element.querySelectorAll(".protyle-wysiwyg--select"));
-            if (selectsElement.length === 0) {
-                selectsElement = [nodeElement];
-            }
-            AIActions(selectsElement, protyle);
-            return;
-        }
-
-        if (!event.repeat && matchHotKey(window.siyuan.config.keymap.editor.general.aiWriting.custom, event)) {
-            event.preventDefault();
-            event.stopPropagation();
-            AIChat(protyle, nodeElement);
             return;
         }
 

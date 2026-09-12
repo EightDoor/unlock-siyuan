@@ -1,0 +1,45 @@
+name: Dev Check
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: ${{ github.workspace }}/kernel/go.mod
+          cache-dependency-path: "**/*.sum"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install pnpm
+        run: npm install -g $(node -p "require('./app/package.json').packageManager")
+
+      - name: Build kernel
+        run: go build ./...
+        working-directory: ${{ github.workspace }}/kernel
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: ${{ github.workspace }}/app
+
+      - name: Generate types
+        run: pnpm gen:types
+        working-directory: ${{ github.workspace }}/app
+
+      - name: Build app
+        run: pnpm build:app
+        working-directory: ${{ github.workspace }}/app

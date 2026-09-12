@@ -47,8 +47,8 @@ func NewAppearance() *Appearance {
 		Icon:                "material",
 		CodeBlockThemeLight: "github",
 		CodeBlockThemeDark:  "base16/dracula",
-		Lang:                "en_US",
-		CloseButtonBehavior: 0,
+		Lang:                "zh_CN", // [FORK-MOD] 默认中文界面
+		CloseButtonBehavior: 1,       // [FORK-MOD] 默认最小化到托盘
 		HideStatusBar:       false,
 		StatusBar:           &util.StatusBar{},
 	}

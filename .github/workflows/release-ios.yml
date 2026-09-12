@@ -23,39 +23,21 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          path: repo
 
-      - name: Clone upstream and apply patches
+      - name: Verify version matches tag
         run: |
-          cd ${{ github.workspace }}/repo
-          
-          git clone --branch ${{ github.event.inputs.version }} --depth=1 https://github.com/siyuan-note/siyuan.git
-          cd siyuan
-          
-          patches_dir="${{ github.workspace }}/repo/patches/siyuan"
-          shopt -s nullglob
-          for p in "$patches_dir"/*.patch; do
-            tmp=$(mktemp)
-            sed -e 's#\ba/#forkSrcPrefix/#g' -e 's#\bb/#forkDstPrefix/#g' "$p" > "$tmp"
-            echo "::group::Applying $(basename "$p")"
-            if ! git apply --check "$tmp"; then
-              echo "::error::patch $(basename "$p") failed to apply on upstream $(git rev-parse --short HEAD)"
-              exit 1
-            fi
-            git apply "$tmp"
-            echo "patch $(basename "$p") applied"
-            echo "::endgroup::"
-            rm -f "$tmp"
-          done
-          shopt -u nullglob
-          
-          git status
+          PKG_VERSION=$(node -p "require('./app/package.json').version")
+          EXPECTED="${{ github.event.inputs.version }}"
+          EXPECTED_NO_V="${EXPECTED#v}"
+          if [ "$PKG_VERSION" != "$EXPECTED_NO_V" ]; then
+            echo "::error::Tag version ($EXPECTED) does not match app/package.json version ($PKG_VERSION)"
+            exit 1
+          fi
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: ${{ github.workspace }}/repo/siyuan/kernel/go.mod
+          go-version-file: ${{ github.workspace }}/kernel/go.mod
           cache-dependency-path: "**/*.sum"
 
       - name: Set up Node
@@ -68,11 +50,11 @@ jobs:
 
       - name: Install Node Dependencies
         run: pnpm install --no-frozen-lockfile
-        working-directory: ${{ github.workspace }}/repo/siyuan/app
+        working-directory: ${{ github.workspace }}/app
 
       - name: Building UI
         run: pnpm run build:mobile
-        working-directory: ${{ github.workspace }}/repo/siyuan/app
+        working-directory: ${{ github.workspace }}/app
 
       - name: Building Kernel
         run: |
@@ -81,7 +63,7 @@ jobs:
           go build -tags fts5 -v -ldflags "-s -w -X github.com/siyuan-note/siyuan/kernel/util.Mode=prod"
           mkdir -p ../app/ios/Kernel
           mv kernel ../app/ios/Kernel/
-        working-directory: ${{ github.workspace }}/repo/siyuan
+        working-directory: ${{ github.workspace }}
         env:
           GO111MODULE: on
           CGO_ENABLED: 1
@@ -90,7 +72,7 @@ jobs:
 
       - name: Building iOS
         run: |
-          cd ${{ github.workspace }}/repo/siyuan/app
+          cd ${{ github.workspace }}/app
           pnpm run build:ios
         continue-on-error: true
 
@@ -103,12 +85,12 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload IPA
-        if: hashFiles('${{ github.workspace }}/repo/siyuan/app/build/*.ipa') != ''
+        if: hashFiles('${{ github.workspace }}/app/build/*.ipa') != ''
         uses: shogo82148/actions-upload-release-asset@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.get_release.outputs.upload_url }}
           asset_name: siyuan-${{ github.event.inputs.version }}-ios.ipa
-          asset_path: ${{ github.workspace }}/repo/siyuan/app/build/*.ipa
+          asset_path: ${{ github.workspace }}/app/build/*.ipa
           asset_content_type: application/octet-stream

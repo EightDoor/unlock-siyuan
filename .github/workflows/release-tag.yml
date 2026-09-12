@@ -1,0 +1,145 @@
+name: Release Tag
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version/tag (e.g. v3.5.8), leave empty to use pushed tag"
+        required: false
+
+env:
+  repo_owner: EightDoor
+  repo_name: unlock-siyuan
+
+jobs:
+  # 阶段1：校验版本匹配
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ steps.resolve.outputs.version }}
+      package_manager: ${{ steps.resolve.outputs.package_manager }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: resolve
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ -n "${{ github.event.inputs.version }}" ]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION="${GITHUB_REF#refs/tags/}"
+          fi
+          PKG_VERSION=$(node -p "require('./app/package.json').version")
+          PACKAGE_MANAGER=$(node -p "require('./app/package.json').packageManager")
+          EXPECTED_NO_V="${VERSION#v}"
+
+          echo "Tag: $VERSION"
+          echo "Package version: $PKG_VERSION"
+          echo "Package manager: $PACKAGE_MANAGER"
+
+          if [ "$PKG_VERSION" != "$EXPECTED_NO_V" ]; then
+            echo "::error::Version mismatch! Tag=$VERSION, package.json version=$PKG_VERSION"
+            exit 1
+          fi
+
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "package_manager=$PACKAGE_MANAGER" >> $GITHUB_OUTPUT
+
+      - name: Create Release
+        uses: ncipollo/release-action@v1
+        with:
+          name: ${{ steps.resolve.outputs.version }}
+          tag: ${{ steps.resolve.outputs.version }}
+          body: |
+            ## 🔓 SiYuan Unlock Edition
+
+            Based on upstream: [siyuan-note/siyuan](https://github.com/siyuan-note/siyuan)
+
+            ### ✨ Modifications
+            - ✅ **VIP features unlocked** - Cloud sync, S3/WebDAV, and all premium features
+            - ✅ **GitHub Release updates** - Check and download updates from GitHub Releases
+            - ✅ **Update confirmation dialog** - Prompts before downloading and installing updates
+
+            ### 🐳 Docker Images
+
+            **Docker Hub:**
+            ```bash
+            docker pull 851708184/siyuan:${{ steps.resolve.outputs.version }}
+            docker pull 851708184/siyuan:latest
+            ```
+
+            **GitHub Container Registry:**
+            ```bash
+            docker pull ghcr.io/eightdoor/unlock-siyuan:${{ steps.resolve.outputs.version }}
+            docker pull ghcr.io/eightdoor/unlock-siyuan:latest
+            ```
+
+            ---
+
+            > ⚠️ **Disclaimer**: This is an unofficial build for personal use only.
+            > Please support the official project: https://b3log.org/siyuan/en/pricing.html
+          draft: true
+          prerelease: false
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # 阶段2：并行触发各平台构建
+  dispatch-builds:
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      actions: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Dispatch build workflows
+        run: |
+          VERSION="${{ needs.validate.outputs.version }}"
+          PM="${{ needs.validate.outputs.package_manager }}"
+
+          echo "Dispatching builds for version: ${VERSION}, packageManager: ${PM}"
+
+          # 获取工作流 ID
+          response=$(curl -s -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows")
+
+          desktop_id=$(echo "$response" | jq -r '.workflows[] | select(.path | contains("desktop-release.yml")) | .id')
+          docker_id=$(echo "$response" | jq -r '.workflows[] | select(.path | contains("release-docker.yml")) | .id')
+          android_id=$(echo "$response" | jq -r '.workflows[] | select(.path | contains("release-android.yml")) | .id')
+          ios_id=$(echo "$response" | jq -r '.workflows[] | select(.path | contains("release-ios.yml")) | .id')
+
+          dispatch_workflow() {
+            local id="$1"
+            local name="$2"
+            local inputs="$3"
+            if [ -n "$id" ]; then
+              curl -s -X POST \
+                -H "Accept: application/vnd.github.v3+json" \
+                -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+                "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/${id}/dispatches" \
+                -d "{\"ref\": \"main\", \"inputs\": ${inputs}}"
+              echo "Dispatched ${name} build"
+            else
+              echo "::warning::Workflow ${name} not found, skipping"
+            fi
+          }
+
+          dispatch_workflow "$desktop_id" "desktop" \
+            "{\"version\": \"${VERSION}\", \"packageManager\": \"${PM}\"}"
+
+          dispatch_workflow "$docker_id" "docker" \
+            "{\"version\": \"${VERSION}\"}"
+
+          dispatch_workflow "$android_id" "android" \
+            "{\"version\": \"${VERSION}\", \"packageManager\": \"${PM}\"}"
+
+          dispatch_workflow "$ios_id" "ios" \
+            "{\"version\": \"${VERSION}\", \"packageManager\": \"${PM}\"}"

@@ -155,7 +155,6 @@ export abstract class Constants {
     public static readonly LOCAL_BAZAAR = "local-bazaar";
     public static readonly LOCAL_PDFTHEME = "local-pdftheme";
     public static readonly LOCAL_LAYOUTS = "local-layouts";
-    public static readonly LOCAL_AI = "local-ai";
     public static readonly LOCAL_PLUGINTOPUNPIN = "local-plugintopunpin";
     public static readonly LOCAL_FLASHCARD = "local-flashcard";
     public static readonly LOCAL_FILEPOSITION = "local-fileposition";
@@ -184,8 +183,6 @@ export abstract class Constants {
     public static readonly DIALOG_HISTORYCOMPARE = "dialog-historycompare";
 
     public static readonly DIALOG_ACCESSAUTHCODE = "dialog-accessauthcode"; // 访问鉴权码
-    public static readonly DIALOG_AICUSTOMACTION = "dialog-aicustomaction"; // AI 自定义操作
-    public static readonly DIALOG_AIUPDATECUSTOMACTION = "dialog-aiupdatecustomaction"; // 更新 AI 自定义操作
     public static readonly DIALOG_BACKGROUNDLINK = "dialog-backgroundlink"; // 题头图-随机
     public static readonly DIALOG_BACKGROUNDRANDOM = "dialog-backgroundrandom"; // 题头图-链接
     public static readonly DIALOG_CHANGELOG = "dialog-changelog"; // 更新日志
@@ -280,7 +277,6 @@ export abstract class Constants {
     public static readonly MENU_CALLOUT_SELECT = "callout-select"; // 提示选择菜单
 
     public static readonly MENU_BACKGROUND_ASSET = "background-asset"; // 资源文件选择器菜单
-    public static readonly MENU_AI = "ai"; // 块 AI 菜单
     public static readonly MENU_TAB = "tab"; // 页签右键菜单
     public static readonly MENU_TAB_LIST = "tabList"; // 页签切换菜单
 
@@ -534,12 +530,10 @@ export abstract class Constants {
                 refPopover: {default: "", custom: ""},
                 copyText: {default: "", custom: ""},
                 exitFocus: {default: "", custom: ""},
-                ai: {default: "", custom: ""},
                 switchReadonly: {default: "", custom: ""},
                 switchAdjust: {default: "", custom: ""},
                 rtl: {default: "", custom: ""},
                 ltr: {default: "", custom: ""},
-                aiWriting: {default: "", custom: ""},
                 openInNewTab: {default: "", custom: ""},
             },
             insert: {

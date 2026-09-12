@@ -47,7 +47,6 @@ import {hintMoveBlock} from "../hint/extend";
 import {makeCard, quickMakeCard} from "../../card/makeCard";
 import {transferBlockRef} from "../../menus/block";
 import {isMobile} from "../../util/functions";
-import {AIActions} from "../../ai/actions";
 import {activeBlur, renderTextMenu, showKeyboardToolbarUtil} from "../../mobile/util/keyboardToolbar";
 import {hideTooltip} from "../../dialog/tooltip";
 import {appearanceMenu} from "../toolbar/Font";
@@ -753,17 +752,6 @@ export class Gutter {
                 }).element);
             }
         }
-        if (!protyle.disabled) {
-            window.siyuan.menus.menu.append(new MenuItem({
-                id: "ai",
-                icon: "iconSparkles",
-                label: window.siyuan.languages.ai,
-                accelerator: window.siyuan.config.keymap.editor.general.ai.custom,
-                click() {
-                    AIActions(selectsElement, protyle);
-                }
-            }).element);
-        }
         const copyMenu: IMenu[] = (copySubMenu(Array.from(selectsElement).map(item => item.getAttribute("data-node-id")), true, selectsElement[0]) as IMenu[]).concat([{
             id: "copyPlainText",
             iconHTML: "",
@@ -1327,16 +1315,6 @@ export class Gutter {
                 submenu: turnIntoSubmenu
             }).element);
         }
-        if (!protyle.disabled && !nodeElement.classList.contains("hr")) {
-            window.siyuan.menus.menu.append(new MenuItem({
-                id: "ai",
-                icon: "iconSparkles",
-                label: window.siyuan.languages.ai,
-                accelerator: window.siyuan.config.keymap.editor.general.ai.custom,
-                click() {
-                    AIActions([nodeElement], protyle);
-                }
-            }).element);
         }
 
         const copyMenu = (copySubMenu([id], true, nodeElement) as IMenu[]).concat([{

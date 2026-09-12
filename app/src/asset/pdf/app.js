@@ -58,11 +58,7 @@ import {
 } from "./pdfjs";
 import {AppOptions, OptionKind} from "./app_options.js";
 import {EventBus, FirefoxEventBus} from "./event_utils.js";
-import {ExternalServices, initCom, MLManager} from "./genericcom.js";
-import {
-    ImageAltTextSettings,
-    NewAltTextManager,
-} from "./new_alt_text_manager";
+import {ExternalServices, initCom} from "./genericcom.js";
 import {LinkTarget, PDFLinkService} from "./pdf_link_service.js";
 import {AnnotationEditorParams} from "./annotation_editor_params";
 import {CaretBrowsingMode} from "./caret_browsing.js";
@@ -159,14 +155,11 @@ class PDFViewerApplication {
         this.l10n = null
         /** @type {AnnotationEditorParams} */
         this.annotationEditorParams = null
-        /** @type {ImageAltTextSettings} */
-        this.imageAltTextSettings = null
         this.isInitialViewSet = false
         // NOTE 不使用 initialBookmark
         this.isViewerEmbedded = true
         this.url = ""
         this.baseUrl = ""
-        this.mlManager = null
         this._downloadUrl = ""
         this._eventBusAbortController = null
         this._windowAbortController = null
@@ -218,26 +211,6 @@ class PDFViewerApplication {
             if (mode) {
                 document.documentElement.classList.add(mode);
             }
-            if (typeof PDFJSDev === "undefined" || PDFJSDev.test("TESTING")) {
-                if (AppOptions.get("enableFakeMLManager")) {
-                    this.mlManager =
-                        MLManager.getFakeMLManager?.({
-                            enableGuessAltText: AppOptions.get("enableGuessAltText"),
-                            enableAltTextModelDownload: AppOptions.get(
-                                "enableAltTextModelDownload"
-                            ),
-                        }) || null;
-                }
-            }
-        } else if (AppOptions.get("enableAltText")) {
-            // We want to load the image-to-text AI engine as soon as possible.
-            this.mlManager = new MLManager({
-                enableGuessAltText: AppOptions.get("enableGuessAltText"),
-                enableAltTextModelDownload: AppOptions.get(
-                    "enableAltTextModelDownload"
-                ),
-                altTextLearnMoreUrl: AppOptions.get("altTextLearnMoreUrl"),
-            });
         }
 
         // Ensure that the `L10n`-instance has been initialized before creating
@@ -359,9 +332,6 @@ class PDFViewerApplication {
         // Set some specific preferences for tests.
         if (typeof PDFJSDev !== "undefined" && PDFJSDev.test("TESTING")) {
             Object.assign(opts, {
-                enableAltText: x => x === "true",
-                enableFakeMLManager: x => x === "true",
-                enableGuessAltText: x => x === "true",
                 enableUpdatedAddImage: x => x === "true",
                 highlightEditorColors: x => x,
                 maxCanvasPixels: x => parseInt(x),
@@ -395,7 +365,6 @@ class PDFViewerApplication {
                 )
                 : new EventBus();
         this.eventBus = AppOptions.eventBus = eventBus;
-        this.mlManager?.setEventBus(eventBus, this._globalAbortController.signal);
 
         this.overlayManager = new OverlayManager();
 
@@ -441,27 +410,6 @@ class PDFViewerApplication {
                     foreground: AppOptions.get("pageColorsForeground"),
                 }
                 : null;
-        let altTextManager;
-        // NOTE
-        // if (AppOptions.get("enableUpdatedAddImage")) {
-        //   altTextManager = appConfig.newAltTextDialog
-        //     ? new NewAltTextManager(
-        //         appConfig.newAltTextDialog,
-        //         this.overlayManager,
-        //         eventBus
-        //       )
-        //     : null;
-        // } else {
-        //   altTextManager = appConfig.altTextDialog
-        //     ? new AltTextManager(
-        //         appConfig.altTextDialog,
-        //         container,
-        //         this.overlayManager,
-        //         eventBus
-        //       )
-        //     : null;
-        // }
-
         const enableHWA = AppOptions.get("enableHWA");
         const pdfViewer = new PDFViewer({
             container,
@@ -470,7 +418,6 @@ class PDFViewerApplication {
             renderingQueue: pdfRenderingQueue,
             linkService: pdfLinkService,
             downloadManager,
-            altTextManager,
             findController,
             scriptingManager:
                 AppOptions.get("enableScripting") && pdfScriptingManager,
@@ -483,15 +430,11 @@ class PDFViewerApplication {
                 "enableHighlightFloatingButton"
             ),
             enableUpdatedAddImage: AppOptions.get("enableUpdatedAddImage"),
-            enableNewAltTextWhenAddingImage: AppOptions.get(
-                "enableNewAltTextWhenAddingImage"
-            ),
             imageResourcesPath: AppOptions.get("imageResourcesPath"),
             enablePrintAutoRotate: AppOptions.get("enablePrintAutoRotate"),
             maxCanvasPixels: AppOptions.get("maxCanvasPixels"),
             enablePermissions: AppOptions.get("enablePermissions"),
             pageColors,
-            mlManager: this.mlManager,
             abortSignal: this._globalAbortController.signal,
             enableHWA,
         });
@@ -549,19 +492,6 @@ class PDFViewerApplication {
             }
         }
 
-        if (
-            this.mlManager &&
-            appConfig.secondaryToolbar?.imageAltTextSettingsButton
-        ) {
-            // NOTE
-            // this.imageAltTextSettings = new ImageAltTextSettings(
-            //   appConfig.altTextSettingsDialog,
-            //   this.overlayManager,
-            //   eventBus,
-            //   this.mlManager
-            // );
-        }
-
         if (appConfig.documentProperties) {
             this.pdfDocumentProperties = new PDFDocumentProperties(
                 appConfig.documentProperties,
@@ -602,15 +532,6 @@ class PDFViewerApplication {
         }
 
         if (appConfig.secondaryToolbar) {
-            if (AppOptions.get("enableAltText")) {
-                appConfig.secondaryToolbar.imageAltTextSettingsButton?.classList.remove(
-                    "hidden"
-                );
-                appConfig.secondaryToolbar.imageAltTextSettingsSeparator?.classList.remove(
-                    "hidden"
-                );
-            }
-
             this.secondaryToolbar = new SecondaryToolbar(
                 appConfig.secondaryToolbar,
                 eventBus
@@ -1980,9 +1901,6 @@ class PDFViewerApplication {
             onViewerModesChanged.bind(this, "spreadMode"),
             {signal}
         );
-        eventBus._on("imagealttextsettings", onImageAltTextSettings.bind(this), {
-            signal,
-        });
         eventBus._on("documentproperties", () => pdfDocumentProperties?.open(), {
             signal,
         });
@@ -2485,15 +2403,6 @@ function onPageNumberChanged(evt) {
             pdfViewer.currentPageLabel
         );
     }
-}
-
-function onImageAltTextSettings() {
-    this.imageAltTextSettings?.open({
-        enableGuessAltText: AppOptions.get("enableGuessAltText"),
-        enableNewAltTextWhenAddingImage: AppOptions.get(
-            "enableNewAltTextWhenAddingImage"
-        ),
-    });
 }
 
 function onFindFromUrlHash(evt) {

@@ -55,7 +55,7 @@ func NewSystem() *System {
 		Name:               util.GetDeviceName(),
 		KernelVersion:      util.Ver,
 		NetworkProxy:       &NetworkProxy{},
-		DownloadInstallPkg: true,
+		DownloadInstallPkg: false, // [FORK-MOD] 默认关闭自动下载更新安装包
 	}
 }
 
